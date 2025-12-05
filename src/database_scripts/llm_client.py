@@ -1,8 +1,8 @@
 import logging
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from openai import AzureOpenAI
-from config.config import AZURE_OPENAI_MODEL, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, OPENAI_API_VERSION
+from src.config.config import AZURE_OPENAI_MODEL, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, OPENAI_API_VERSION, AZURE_OPENAI_EMBEDDING_MODEL
 
 
 class LLMClient:
@@ -15,12 +15,14 @@ class LLMClient:
             api_version=OPENAI_API_VERSION
         )
         self._deployment = AZURE_OPENAI_MODEL
+        self._embedding_deployment = AZURE_OPENAI_EMBEDDING_MODEL
         self._logger = logger or logging.getLogger(__name__)
 
     def parse_ingredients(self, ingredients: List[str]) -> List[Dict]:
         """
         Calls model with list of ingredients and returns structured json data.
         """
+        logging.info("Parsing ingredients...")
         system_prompt = (
             "You are an assistant that extracts structured ingredient data from "
             "recipe ingredient lines. Return ONLY valid JSON."
@@ -52,3 +54,29 @@ class LLMClient:
         import json
         data = json.loads(content)
         return data.get("ingredients", [])
+
+    def generate_embeddings_batch(self, texts: List[str]) -> List[list[float]]:
+        """
+        Generates embeddings for a batch of texts (up to 2000 tokens total).
+        Returns list of embeddings (each: list[float], len=1536).
+        """
+        logging.info("Generating embeddings...")
+        if not texts:
+            return []
+
+        response = self._client.embeddings.create(
+            model=self._embedding_deployment,
+            input=texts
+        )
+        embeddings = [data.embedding for data in response.data]
+        self._logger.debug(
+            f"Generated {len(embeddings)} embeddings, avg len: {sum(map(len, embeddings)) / len(embeddings):.0f}")
+        return embeddings
+
+
+    def generate_query_embedding(self, user_query: str) -> list[float]:
+        """
+        Generates embedding for user query like "mam jajka, mleko i mąkę".
+        """
+        enriched_query = f"Przepis z: {user_query}"
+        return self.generate_embeddings_batch([enriched_query])[0]

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/<PASSWORD>
+    volumes:
+      - ./neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p TEG_2025 'RETURN 1;' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  init-app:
+    build: .
+    container_name: init-app
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      - DB_URI=neo4j://neo4j:7687
+      - DB_USER=neo4j
+      - DB_PASSWORD=<PASSWORD>
+      - DB_DATABASE=neo4j
+      - DATASET_PATH=/app/src/data/recipes_extracted.csv
+      - AZURE_OPENAI_MODEL=gpt-4.1-nano
+      - AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+      - AZURE_OPENAI_ENDPOINT=<ENDPOINT>
+      - AZURE_OPENAI_API_KEY=<API_KEY>
+      - OPENAI_API_VERSION=2024-12-01-preview
+      - PYTHONPATH=/app/src
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    networks:
+      - app-network
+    command: >
+      sh -c "
+        python -c 'from neo4j import GraphDatabase; driver = GraphDatabase.driver(\"neo4j://neo4j:7687\", auth=(\"neo4j\", \"<PASSWORD>\")); driver.verify_connectivity(); print(\"Neo4j gotowy!\"); driver.close()' &&
+        cd /app && PYTHONPATH=/app/src python -m src.main
+      "
+
+networks:
+  app-network:
+    driver: bridge
