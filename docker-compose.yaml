@@ -31,7 +31,7 @@ services:
       - DB_USER=neo4j
       - DB_PASSWORD=<PASSWORD>
       - DB_DATABASE=neo4j
-      - DATASET_PATH=/app/src/data/recipes_extracted.csv
+      - RAW_DATASET_PATH=/app/src/data/recipes_extracted_full_version.csv
       - AZURE_OPENAI_MODEL=gpt-4.1-nano
       - AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
       - AZURE_OPENAI_ENDPOINT=<ENDPOINT>
@@ -47,7 +47,7 @@ services:
     command: >
       sh -c "
         python -c 'from neo4j import GraphDatabase; driver = GraphDatabase.driver(\"neo4j://neo4j:7687\", auth=(\"neo4j\", \"<PASSWORD>\")); driver.verify_connectivity(); print(\"Neo4j gotowy!\"); driver.close()' &&
-        cd /app && PYTHONPATH=/app/src python -m src.main
+        cd /app && PYTHONPATH=/app/src python -m src.database.init_loader
       "
 
 networks:
