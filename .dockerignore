@@ -1,7 +1,7 @@
 # Git i dev tools
 .git
 .gitignore
-.env
+src/config/.env
 README.md
 docs/
 

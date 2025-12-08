@@ -2,7 +2,7 @@ import os
 import logging
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path='C:\\Users\\dawid\\PycharmProjects\\Generative_Technologies_Project_Food_Waste_Manager\\src\\config\\.env')
 
 DB_USER = os.getenv("DB_USER", "neo4j")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "neo4j")

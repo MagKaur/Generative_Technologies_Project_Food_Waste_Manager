@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ /app/src/
 
 # Domyślny entrypoint
-CMD ["python", "src/main.py"]
+CMD ["python", "src/database/init_loader.py"]

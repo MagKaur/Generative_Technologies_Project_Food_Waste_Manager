@@ -1,5 +1,7 @@
 neo4j
 pandas
-openai
 kagglehub
 python-dotenv
+langchain_core
+langchain_openai
+uuid_utils
