@@ -1,102 +1,113 @@
-from __future__ import annotations
-from dataclasses import dataclass, field
-from datetime import date
-from typing import List, Optional
+import uuid
+
+from neomodel import (
+    StructuredNode,
+    StringProperty,
+    IntegerProperty,
+    FloatProperty,
+    DateProperty,
+    ArrayProperty,
+    RelationshipTo,
+    RelationshipFrom,
+    One,
+    OneOrMore,
+    ZeroOrMore,
+    StructuredRel,
+    ZeroOrOne,
+    VectorIndex, EmailProperty
+)
 
 
-@dataclass
-class Ingredient:
-    id: str
-    name: str
-    category: Optional[str] = None
-
-    in_seasons: List["Season"] = field(default_factory=list)  # (Ingredient)-[:IN_SEASON]->(Season)
+class Cuisine(StructuredNode):
+    name = StringProperty(unique_index=True)  # Unique name
 
 
-@dataclass
-class Recipe:
-    id: str
-    title: str
-    total_time_minutes: Optional[int] = None
-    instructions: Optional[str] = None
-    source_type: Optional[str] = None  # np. "kaggle" / "user_chat" / "url" / "image_ocr"
-
-    # relations
-    ingredients: List[Ingredient] = field(default_factory=list)  # HAS_INGREDIENT -> Ingredient
-    cuisine: Optional["Cuisine"] = None  # OF_CUISINE -> Cuisine
-    tags: Optional[List["Tag"]] = None  # HAS_TAG -> Tag
-    suitable_for: List["DietaryProfile"] = field(default_factory=list)  # SUITABLE_FOR -> DietaryProfile
+class Season(StructuredNode):
+    name = StringProperty(unique_index=True)  # Unique name
 
 
-@dataclass
-class PantryItem:
-    id: str
-    quantity: float
-    unit: str
-    expiration_date: Optional[date] = None
-
-    # relations
-    ingredient: Optional[Ingredient] = None  # IS_OF_INGREDIENT -> Ingredient
-    owner_id: Optional[str] = None  # OWNS <- User.id
+class Tag(StructuredNode):
+    name = StringProperty(unique_index=True)  # Unique name
 
 
-@dataclass
-class User:
-    id: str
-    name: str
-    locale: Optional[str] = None
+class DietaryProfile(StructuredNode):
+    name = StringProperty(unique_index=True)  # Unique name
 
-    # relations
-    pantry_items: Optional[List[PantryItem]] = field(default_factory=list)  # OWNS -> PantryItem
-    dietary_profiles: Optional[List["DietaryProfile"]] = field(
-        default_factory=list)  # HAS_DIETARY_PROFILE -> DietaryProfile
-    cooked_recipes: List[Recipe] = Optional[field(default_factory=list)]  # COOKED -> Recipe
+    users = RelationshipFrom('User', 'HAS_DIETARY_PROFILE', cardinality=ZeroOrMore)
+    suitable_recipes = RelationshipFrom('Recipe', 'SUITABLE_FOR', cardinality=ZeroOrMore)
 
 
-@dataclass
-class DietaryProfile:
-    id: str
-    name: str
+class Ingredient(StructuredNode):
+    name = StringProperty(unique_index=True)
+    category = StringProperty(default='other')
 
-    # relations
-    users: List[User] = field(default_factory=list)  # HAS_DIETARY_PROFILE <- User
-    suitable_recipes: List[Recipe] = field(default_factory=list)  # SUITABLE_FOR <- Recipe
-    forbidden_ingredients: List[Ingredient] = field(default_factory=list)  # NOT_ALLOWED_FOR <- Ingredient
+    in_seasons = RelationshipTo("Season", 'IN_SEASON', cardinality=ZeroOrMore)
+    recipes = RelationshipFrom('Recipe', 'HAS_INGREDIENT', cardinality=ZeroOrMore)
+    pantry_items = RelationshipFrom('PantryItem', 'IS_OF_INGREDIENT', cardinality=ZeroOrMore)
 
 
-@dataclass
-class Document:
-    id: str
-    source_type: str  # np. "kaggle", "url", "user_chat", "image_ocr"
-    raw_text: str
-
-    # relations
-    recipe: Optional[Recipe] = None  # DESCRIBES -> Recipe
-    chunks: List["Chunk"] = field(default_factory=list)  # HAS_CHUNK -> Chunk
+class HasIngredientRel(StructuredRel):
+    amount = FloatProperty(required=True)
+    unit = StringProperty(required=True)
 
 
-@dataclass
-class Chunk:
-    id: str
-    text: str
-    embedding: Optional[list[float]] = None
-    position: Optional[int] = None
+class Recipe(StructuredNode):
+    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    title = StringProperty(unique_index=True)
+    total_time_minutes = IntegerProperty(required=False)
+    instructions = StringProperty(required=False)
+    source_type = StringProperty(required=False)
 
-    # relations
-    ingredients: List[Ingredient] = field(default_factory=list)  # MENTIONS_INGREDIENT -> Ingredient
-    document_id: Optional[str] = None  # HAS_CHUNK <- Document.id
+    ingredients = RelationshipTo("Ingredient", 'HAS_INGREDIENT', cardinality=ZeroOrMore, model=HasIngredientRel)
 
-
-@dataclass
-class Cuisine:
-    name: str
-
-
-@dataclass
-class Season:
-    name: str
+    cuisine = RelationshipTo("Cuisine", 'OF_CUISINE', cardinality=ZeroOrOne)
+    tags = RelationshipTo("Tag", 'HAS_TAG', cardinality=ZeroOrMore)
+    suitable_for = RelationshipTo("DietaryProfile", 'SUITABLE_FOR', cardinality=ZeroOrMore)
+    users_cooked = RelationshipFrom('User', 'COOKED', cardinality=ZeroOrMore)
+    documents = RelationshipFrom('Document', 'DESCRIBES', cardinality=ZeroOrMore)
 
 
-@dataclass
-class Tag:
-    name: str
+class PantryItem(StructuredNode):
+    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    quantity = FloatProperty()
+    unit = StringProperty()
+    expiration_date = DateProperty(required=False)
+
+    owner = RelationshipFrom('User', 'OWNS', cardinality=One)  # Odwrotna do pantry_items
+    ingredient = RelationshipTo('Ingredient', 'IS_OF_INGREDIENT', cardinality=ZeroOrOne)
+
+
+class CookedRel(StructuredRel):
+    date = DateProperty(required=False)
+    rating = FloatProperty()
+
+
+class User(StructuredNode):
+    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    name = StringProperty()
+    email = EmailProperty()
+
+    pantry_items = RelationshipTo("PantryItem", 'OWNS', cardinality=ZeroOrMore)
+    dietary_profiles = RelationshipTo("DietaryProfile", 'HAS_DIETARY_PROFILE', cardinality=ZeroOrMore)
+
+    cooked_recipes = RelationshipTo("Recipe", 'COOKED', cardinality=ZeroOrMore, model=CookedRel)
+
+
+class Document(StructuredNode):
+    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    source_type = StringProperty()
+    raw_text = StringProperty()
+
+    recipe = RelationshipTo("Recipe", 'DESCRIBES', cardinality=ZeroOrOne)
+    chunks = RelationshipTo("Chunk", 'HAS_CHUNK', cardinality=OneOrMore)
+
+
+class Chunk(StructuredNode):
+    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    text = StringProperty()
+    embedding = ArrayProperty(base_property=FloatProperty(),
+                              vector_index=VectorIndex(dimensions=512, similarity_function="cosine"))
+    position = IntegerProperty()
+
+    document = RelationshipFrom("Document", 'HAS_CHUNK', cardinality=OneOrMore)
+    ingredients = RelationshipTo("Ingredient", 'MENTIONS_INGREDIENT', cardinality=ZeroOrMore)

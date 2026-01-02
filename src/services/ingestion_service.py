@@ -1,11 +1,22 @@
+import logging
+import os
 from dataclasses import dataclass
+from datetime import date
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from uuid import uuid4
 
-from src.database.db_client import Neo4jClient
+import pdfplumber
+import requests
+from bs4 import BeautifulSoup
+from neomodel import DoesNotExist
+
+from src.database.db_client import DatabaseService  # Changed to neomodel client
+from src.models.graph_models import (
+    Recipe, Document, Chunk, Ingredient, DietaryProfile, User, PantryItem
+)
+from src.models.llm_models import MatchItem
 from src.services.llm_client import LLMClient, simple_chunk
-from src.models.graph_models import Recipe, Document, Chunk, Ingredient
 
 
 class IngestionSource(str, Enum):
@@ -28,10 +39,31 @@ class IngestionResult:
     document_id: str
 
 
+@dataclass
+class UserInput:
+    """Input data for ingesting a new user."""
+    name: str
+    email: Optional[str] = None  # Added for User model
+    dietary_profiles: Optional[List[str]] = None  # Names for DietaryProfile
+    pantry_items: Optional[List["PantryItemInput"]] = None  # Optional list
+
+
+@dataclass
+class PantryItemInput:
+    """Input data for a single pantry item."""
+    name: str  # Name of the ingredient (e.g., "tomato" or "pomidor")
+    quantity: float
+    unit: str  # e.g., "cups", "grams"
+    expiration_date: Optional[date] = None
+
+
 class IngestionService:
-    def __init__(self, db_client: Neo4jClient, llm_client: LLMClient):
+    def __init__(self, db_client: DatabaseService, llm_client: LLMClient):  # Changed to DatabaseService
         self._db = db_client
         self._llm = llm_client
+        self._match_threshold = 0.7  # Threshold for accepting LLM match
+
+        self._logger = logging.getLogger(__name__)
 
     def ingest_recipe(self, data: IngestionInput) -> IngestionResult:
         """
@@ -40,40 +72,114 @@ class IngestionService:
         """
         raw_text = self._extract_text(data)
 
-        # 1) text -> Recipe
+        # 1) text -> Recipe (with temp data for rels)
         recipe: Recipe = self._llm.parse_recipe_to_domain(raw_text)
 
-        # 2) Recipe saving
+        # 2) Recipe saving (neomodel: save + connect with rel properties)
         self._db.upsert_recipe(recipe)
 
         # 3) Build Document + Chunk
-        document_id = str(uuid4())
-
         chunks_list = []
         for position, chunk_text in enumerate(simple_chunk(raw_text)):
-            chunk_ingredients = filter_ingredients_for_chunk(chunk_text, recipe.ingredients)
+            temp_data = []
+            if hasattr(recipe, '_ingredients_data'):
+                temp_data = recipe._ingredients_data
+
+            chunk_ingredients = filter_ingredients_for_chunk(chunk_text, temp_data)
+
             ch = Chunk(
-                id=str(uuid4()),
                 text=chunk_text,
                 embedding=self._llm.embed_text(chunk_text),
                 position=position,
-                ingredients=chunk_ingredients,
-                document_id=document_id,
             )
+            ch._ingredients = [data['ingredient'] for data in chunk_ingredients]  # From temp
             chunks_list.append(ch)
 
         document = Document(
-            id=document_id,
             source_type=data.source.value,
             raw_text=raw_text,
-            recipe=recipe,
-            chunks=chunks_list,
         )
+        document._chunks = chunks_list
+        document._recipe = recipe
 
         # 4) Save Document + Chunk
         self._db.upsert_document_with_chunks(document)
 
-        return IngestionResult(recipe_id=recipe.id, document_id=document.id)
+        return IngestionResult(recipe_id=recipe.title, document_id=document.uuid)  # Use title as id (unique)
+
+    def ingest_user(self, user_data: UserInput) -> str:
+        """
+        Ingests a new user with dietary_profiles and optional pantry_items.
+        Returns generated user uuid (unique).
+        """
+        # Create User without assigning relationship lists (connect in db)
+        user = User(
+            name=user_data.name,
+            email=user_data.email,
+        )
+        if user_data.dietary_profiles:
+            user._dietary_profiles_names = user_data.dietary_profiles
+        if user_data.pantry_items:
+            self.ingest_pantry_items_for_user(user, user_data.pantry_items)
+
+        self._db.upsert_user_with_pantry(user)
+        return user.uuid
+
+    def ingest_pantry_items_for_user(self, user: User, pantry_items_data: List[PantryItemInput]) -> None:
+        """
+        Ingests pantry items for user (by object, not id).
+        Uses LLM to match ingredient names to existing (by name).
+        Creates new Ingredient if no match or low confidence.
+        Builds pairs (pantry_item, ingredient) for db connect (no assignment to rel).
+        """
+        # 1) Fetch all existing ingredients from DB (by name)
+        existing_ingredients = self._db.get_all_ingredients()  # List of {'name': str, 'category': str}
+        existing_names = [ing["name"] for ing in existing_ingredients]
+
+        # 2) Prepare input for LLM
+        new_items_list = [
+            {"name": item.name, "index": i}
+            for i, item in enumerate(pantry_items_data)
+        ]
+
+        # 3) Call LLM for matching
+        if existing_names:
+            matches = self._llm.match_ingredients_to_existing(existing_names, new_items_list)
+        else:
+            matches = [MatchItem(input_index=i, matched_name=None, confidence=0.0) for i in
+                       range(len(pantry_items_data))]
+
+        # 4) Build PantryItems with matched or new ingredients (by name)
+        pantry_pairs = []
+        for match in matches:
+            input_index = match.input_index
+            item_data = pantry_items_data[input_index]
+            if match.matched_name and match.confidence >= self._match_threshold:
+                # FIXED: Fetch existing via get (not create new instance)
+                try:
+                    ingredient = Ingredient.nodes.get(name=match.matched_name)
+                    # Update category if needed from candidate (optional)
+                    candidate = next((ing for ing in existing_ingredients if ing["name"] == match.matched_name), None)
+                    if candidate:
+                        ingredient.category = candidate.get("category", ingredient.category)
+                        ingredient.save()  # Save updated category if changed
+                except DoesNotExist:
+                    # Fallback: Create new if get fails (edge case)
+                    ingredient = _create_new_ingredient(item_data.name)
+            else:
+                # No match or low confidence: Create new
+                ingredient = _create_new_ingredient(item_data.name)
+
+            pantry_item = PantryItem(
+                quantity=item_data.quantity,
+                unit=item_data.unit,
+                expiration_date=item_data.expiration_date,
+            )
+            # Do NOT assign pantry_item.ingredient = ingredient – connect later
+            pantry_pairs.append((pantry_item, ingredient))  # Pair for db processing
+
+        user._pantry_pairs = pantry_pairs
+        self._db.upsert_user_with_pantry(user)
 
     # --- PRIVATE HELPING METHODS ---
 
@@ -83,12 +189,10 @@ class IngestionService:
             return data.content
 
         if data.source == IngestionSource.URL:
-            # TODO: download HTML and extract recipe text
-            raise NotImplementedError("URL ingestion not implemented yet.")
+            return self._process_url(data)
 
         if data.source == IngestionSource.PDF:
-            # TODO: pdf -> text (ex. pdfminer / pypdf)
-            raise NotImplementedError("PDF ingestion not implemented yet.")
+            return self._process_pdf(data)
 
         if data.source == IngestionSource.IMAGE:
             # TODO: OCR -> text
@@ -96,7 +200,82 @@ class IngestionService:
 
         raise ValueError(f"Unsupported ingestion source: {data.source}")
 
+    def _process_url(self, data: IngestionInput):
+        try:
+            response = requests.get(data.content, timeout=5,
+                                    headers={'User-Agent': 'Mozilla/5.0 (compatible; RecipeBot/1.0)'})
+            response.raise_for_status()
+            html_content = response.text
 
-def filter_ingredients_for_chunk(chunk_text: str, ingredients: list[Ingredient]) -> list[Ingredient]:
+            # 2) Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+
+            # 3) Delete non necessary elements
+            for script in soup(["script", "style", "nav", "header", "footer"]):
+                script.decompose()
+
+            # 4) Get main text
+            raw_text = soup.body.get_text(separator='\n', strip=True) if soup.body else ""
+
+            self._logger.info(f"Extracted {len(raw_text)} chars from URL: {data.content}")
+
+            return raw_text
+
+        except requests.exceptions.RequestException as e:
+            self._logger.warning(f"Error fetching URL {data.content}: {e}; returning empty text.")
+            return ""
+        except Exception as e:
+            self._logger.error(f"Unexpected error in URL extraction for {data.content}: {e}")
+            return ""
+
+    def _process_pdf(self, data: IngestionInput):
+        try:
+            if data.raw_bytes:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                    tmp.write(data.raw_bytes)
+                    pdf_path = tmp.name
+            else:
+                pdf_path = data.content
+                if not os.path.exists(pdf_path):
+                    raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+            raw_text = ""
+            with pdfplumber.open(pdf_path) as pdf:
+                for page_num, page in enumerate(pdf.pages, start=1):
+                    page_text = page.extract_text()
+                    if page_text:
+                        raw_text += f"\n--- Page {page_num} ---\n{page_text}\n"
+
+                    tables = page.extract_tables()
+                    if tables:
+                        for table in tables:
+                            raw_text += "\nTABLE:\n" + "\n".join(
+                                [" | ".join(row) for row in table if row]) + "\n"
+
+            if data.raw_bytes:
+                os.unlink(pdf_path)
+
+            self._logger.info(f"Extracted {len(raw_text)} chars from PDF: {pdf_path or 'bytes'}")
+            return raw_text.strip()
+
+        except FileNotFoundError as e:
+            self._logger.warning(f"PDF file not found: {e}")
+            return ""
+        except Exception as e:
+            self._logger.error(f"Error extracting PDF {data.content}: {e}")
+            return ""
+
+
+def _create_new_ingredient(name: str) -> Ingredient:
+    """Helper to create a new Ingredient object with defaults (no id, unique by name)."""
+    return Ingredient(
+        name=name,
+        category="other",  # Default; infer later if needed
+    )
+
+
+def filter_ingredients_for_chunk(chunk_text: str, ingredients_data: list[dict]) -> list[dict]:
+    """Filter ingredients for chunk (adjusted for temp data with ingredient obj)."""
     lower = chunk_text.lower()
-    return [ing for ing in ingredients if ing.name.lower() in lower]
+    return [data for data in ingredients_data if data['ingredient'].name.lower() in lower]

@@ -31,7 +31,7 @@ services:
       - DB_USER=neo4j
       - DB_PASSWORD=<PASSWORD_CHANGE_ME>
       - DB_DATABASE=neo4j
-      - RAW_DATASET_PATH=/app/src/data/recipes_extracted_full_version.csv
+      - RAW_DATASET_PATH=/app/src/data/
       - AZURE_OPENAI_MODEL=gpt-4o
       - AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
       - AZURE_OPENAI_ENDPOINT=<CHANGE_ME>
