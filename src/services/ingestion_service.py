@@ -4,10 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 from enum import Enum
 from typing import Optional, List
-from uuid import uuid4
 
 import pdfplumber
 import requests
+import easyocr
+import cv2
+import numpy as np
+
 from bs4 import BeautifulSoup
 from neomodel import DoesNotExist
 
@@ -195,8 +198,7 @@ class IngestionService:
             return self._process_pdf(data)
 
         if data.source == IngestionSource.IMAGE:
-            # TODO: OCR -> text
-            raise NotImplementedError("Image ingestion not implemented yet.")
+            return self._process_image(data)
 
         raise ValueError(f"Unsupported ingestion source: {data.source}")
 
@@ -256,7 +258,8 @@ class IngestionService:
             if data.raw_bytes:
                 os.unlink(pdf_path)
 
-            self._logger.info(f"Extracted {len(raw_text)} chars from PDF: {pdf_path or 'bytes'}")
+            self._logger.info(f"Extracted text {len(raw_text)} chars from PDF: {pdf_path or 'bytes'}")
+            self._logger.debug(f"Extracted text:\n{raw_text}")
             return raw_text.strip()
 
         except FileNotFoundError as e:
@@ -264,6 +267,37 @@ class IngestionService:
             return ""
         except Exception as e:
             self._logger.error(f"Error extracting PDF {data.content}: {e}")
+            return ""
+
+    def _process_image(self, data: IngestionInput):
+        try:
+            reader = easyocr.Reader(['pl', 'en'])
+            raw_text = ""
+
+            if data.raw_bytes:
+                nparr = np.frombuffer(data.raw_bytes, np.uint8)
+                image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if image is None:
+                    raise ValueError("Could not decode image from bytes")
+                result = reader.readtext(image, detail=0, paragraph=True)
+                raw_text = '\n'.join(result)
+                self._logger.info(f"Extracted {len(raw_text)} chars from image bytes")
+            else:
+                image_path = data.content
+                if not os.path.exists(image_path):
+                    raise FileNotFoundError(f"Image file not found: {image_path}")
+                result = reader.readtext(image_path, detail=0, paragraph=True)
+                raw_text = '\n'.join(result)
+                self._logger.info(f"Extracted {len(raw_text)} chars from image: {image_path}")
+
+            self._logger.debug(f"Extracted text:\n{raw_text.strip()}")
+            return raw_text.strip()
+
+        except FileNotFoundError as e:
+            self._logger.warning(f"Image file not found: {e}")
+            return ""
+        except Exception as e:
+            self._logger.error(f"Error extracting image {data.content}: {e}")
             return ""
 
 

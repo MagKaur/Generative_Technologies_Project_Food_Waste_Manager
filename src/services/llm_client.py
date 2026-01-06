@@ -54,7 +54,7 @@ class LLMClient:
         Ingredient created without id (unique by name).
         """
         system_prompt = """
-             ROLE
+            ROLE
             You are an expert level recipe parsing and data extraction system. Your task is to analyze raw, unstructured recipe text and convert it into a fully structured JSON object following the schema provided below.
             
             GENERAL RULES

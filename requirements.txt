@@ -8,3 +8,4 @@ python-dotenv
 langchain_core
 langchain_openai
 uuid_utils
+easyocr
