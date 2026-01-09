@@ -1,4 +1,5 @@
 import uuid
+import os
 
 from neomodel import (
     StructuredNode,
@@ -16,6 +17,8 @@ from neomodel import (
     ZeroOrOne,
     VectorIndex, EmailProperty
 )
+# Fallback to dims 512 jeśli nie dostanie z .env
+EMBEDDING_DIMS = int(os.getenv("EMBEDDING_DIMS", "512"))
 
 
 class Cuisine(StructuredNode):
@@ -52,8 +55,8 @@ class HasIngredientRel(StructuredRel):
 
 
 class Recipe(StructuredNode):
-    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
-    title = StringProperty(unique_index=True)
+    uuid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
+    title = StringProperty(index=True)
     total_time_minutes = IntegerProperty(required=False)
     instructions = StringProperty(required=False)
     source_type = StringProperty(required=False)
@@ -68,7 +71,7 @@ class Recipe(StructuredNode):
 
 
 class PantryItem(StructuredNode):
-    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    uuid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     quantity = FloatProperty()
     unit = StringProperty()
     expiration_date = DateProperty(required=False)
@@ -83,7 +86,7 @@ class CookedRel(StructuredRel):
 
 
 class User(StructuredNode):
-    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    uuid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     name = StringProperty()
     email = EmailProperty()
 
@@ -94,7 +97,7 @@ class User(StructuredNode):
 
 
 class Document(StructuredNode):
-    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    uuid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     source_type = StringProperty()
     raw_text = StringProperty()
 
@@ -103,10 +106,10 @@ class Document(StructuredNode):
 
 
 class Chunk(StructuredNode):
-    uuid = StringProperty(unique_index=True, default=uuid.uuid4)
+    uuid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     text = StringProperty()
     embedding = ArrayProperty(base_property=FloatProperty(),
-                              vector_index=VectorIndex(dimensions=512, similarity_function="cosine"))
+                              vector_index=VectorIndex(dimensions=EMBEDDING_DIMS, similarity_function="cosine"))
     position = IntegerProperty()
 
     document = RelationshipFrom("Document", 'HAS_CHUNK', cardinality=OneOrMore)

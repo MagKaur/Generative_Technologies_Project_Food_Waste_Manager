@@ -14,12 +14,13 @@ import numpy as np
 from bs4 import BeautifulSoup
 from neomodel import DoesNotExist
 
-from src.database.db_client import DatabaseService  # Changed to neomodel client
+from src.database.database_service import DatabaseService  # Changed to neomodel client
 from src.models.graph_models import (
-    Recipe, Document, Chunk, Ingredient, DietaryProfile, User, PantryItem
+    Recipe, Document, Chunk, Ingredient, User, PantryItem
 )
 from src.models.llm_models import MatchItem
-from src.services.llm_client import LLMClient, simple_chunk
+from src.clients.llm_client import LLMClient
+from src.utils.chunking import simple_chunk
 
 
 class IngestionSource(str, Enum):

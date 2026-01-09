@@ -1,30 +1,16 @@
 import json
 import logging
+import os
 
 from typing import Optional, List
-from uuid import uuid4
 
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import SystemMessage, HumanMessage
 
 from src.config.config import AZURE_OPENAI_MODEL, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, OPENAI_API_VERSION, \
     AZURE_OPENAI_EMBEDDING_MODEL
-from src.models.graph_models import Recipe, Ingredient, Cuisine, Tag, Season, DietaryProfile
+from src.models.graph_models import Recipe, Ingredient, Cuisine, Tag, DietaryProfile
 from src.models.llm_models import RecipeSchema, MatchSchema, MatchItem
-
-
-def simple_chunk(text: str, max_chars: int = 1000) -> list[str]:
-    chunks = []
-    current = []
-    for line in text.splitlines():
-        if sum(len(l) for l in current) + len(line) > max_chars and current:
-            chunks.append("\n".join(current))
-            current = []
-        current.append(line)
-    if current:
-        chunks.append("\n".join(current))
-    return chunks
 
 
 class LLMClient:
@@ -47,6 +33,9 @@ class LLMClient:
             model=embeddings_model or AZURE_OPENAI_EMBEDDING_MODEL,
         )
 
+        # Cached embedding dimensionality (set on first embedding call)
+        self._embedding_dims: Optional[int] = None
+
     def parse_recipe_to_domain(self, text: str) -> Recipe:
         """
         Parses text to Recipe domain object.
@@ -57,10 +46,9 @@ class LLMClient:
             ROLE
             You are an expert level recipe parsing and data extraction system. Your task is to analyze raw, unstructured recipe text and convert it into a fully structured JSON object following the schema provided below.
             
-            GENERAL RULES
-            You must analyze the entire input text including titles, ingredient lists, instructions and any inline mentions of food or preparation steps. Ignore website metadata and unrelated text unless it contains ingredient information.
-            
-            If the recipe is written in a language other than English, translate the entire content into natural English before processing. All output must be in English.
+            AMOUNT RULE
++            - 'amount' must be a numeric value (decimal). If the text uses fractions (e.g., 1/2) convert to decimal (0.5).
++            - If amount is unknown, use 0.0 (never null).
             
             You must never return null values. If information is missing or implicit, you must infer the most likely and reasonable value based on cooking knowledge and context.
             
@@ -157,7 +145,7 @@ class LLMClient:
             "ingredients": [
             {
             "name": "string",
-            "amount": "string",
+            "amount": number,
             "unit": "string",
             "category": "string",
             "in_seasons": ["string"]
@@ -167,14 +155,14 @@ class LLMClient:
             }
         """
         prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=text),
+            ("system", system_prompt),
+            ("human", "{input_text}"),
         ])
 
         structured_llm = self._client.with_structured_output(RecipeSchema)
+        pipeline = prompt | structured_llm
 
-        chain = prompt | structured_llm
-        parsed: RecipeSchema = chain.invoke({"input_text": text})
+        parsed: RecipeSchema = pipeline.invoke({"input_text":text})
 
         # Create Recipe without save (save in db_client)
         recipe = Recipe(
@@ -214,7 +202,7 @@ class LLMClient:
         Matches new ingredient names to existing ones using semantic similarity.
         Returns list of MatchItem objects (matched_name for Ingredient by name).
         """
-        new_items_json = json.dumps(new_items)
+        new_items_json = json.dumps(new_items, ensure_ascii=False)
         system_content = """
         You are an ingredient matching expert. Given a list of existing ingredients in the database and new items to add,
         for each new item, find the best matching existing ingredient by name (considering variations, synonyms, or inflections like "tomato" vs "tomatoes" or "pomidor" vs "pomidory").
@@ -239,21 +227,65 @@ class LLMClient:
         """.format(', '.join(existing_names), new_items_json)
 
         prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content=system_content),
-            HumanMessage(content="Perform the matching based on the provided data."),
+            ("system", system_content),
+            ("human", "Perform the matching based on the provided data."),
         ])
 
         structured_llm = self._client.with_structured_output(MatchSchema)
+        pipeline = prompt | structured_llm
 
-        chain = prompt | structured_llm
-        parsed: MatchSchema = chain.invoke({})
 
+        parsed: MatchSchema = pipeline.invoke({})
         return parsed.matches
 
+
+    def embedding_dimensions(self) -> int:
+        """Returns embedding dimensionality (cached after first embed call)."""
+
+        if self._embedding_dims is not None:
+            return self._embedding_dims
+        # probe (1 API call) to learn the dimensionality
+        vec = self._embedder.embed_query("dimension_probe")
+        self._embedding_dims = len(vec)
+        return self._embedding_dims
+
     def embed_text(self, text: str) -> list[float]:
-        """Returns single embedding for save to Chunk.embedding (512-dim for model)."""
-        return self._embedder.embed_query(text)
+        """Returns a single embedding for save to Chunk.embedding (with dimension check)."""
+        vec = self._embedder.embed_query(text)
+        dims = len(vec)
+
+        if self._embedding_dims is None:
+            self._embedding_dims = dims
+
+        expected = int(os.getenv("EMBEDDING_DIMS", str(dims)))
+        if dims != expected:
+            raise ValueError(
+                f"Embedding dimension mismatch: got {dims}, expected {expected}. "
+                f"Set EMBEDDING_DIMS={dims} (and recreate the Neo4j vector index), "
+                f"or switch to an embedding model that outputs {expected}-dim vectors."
+            )
+        return vec
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Batch for embedding texts."""
-        return self._embedder.embed_documents(texts)
+        """Batch embeddings (with dimension check)."""
+        vecs = self._embedder.embed_documents(texts)
+
+        if not vecs:
+            return vecs
+        dims = len(vecs[0])
+
+        if self._embedding_dims is None:
+            self._embedding_dims = dims
+
+        expected = int(os.getenv("EMBEDDING_DIMS", str(dims)))
+
+        if dims != expected:
+            raise ValueError(
+                 f"Embedding dimension mismatch: got {dims}, expected {expected}. "
+                 f"Set EMBEDDING_DIMS={dims} (and recreate the Neo4j vector index), "
+                 f"or switch to an embedding model that outputs {expected}-dim vectors."
+            )
+
+        if any(len(v) != dims for v in vecs):
+            raise ValueError("Embedding batch returned vectors with inconsistent lengths.")
+        return vecs

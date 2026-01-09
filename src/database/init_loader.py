@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 
 from src.services.ingestion_service import IngestionService, IngestionInput, IngestionSource, UserInput, PantryItemInput
-from src.database.db_client import DatabaseService  # Adapted to neomodel client
-from src.services.llm_client import LLMClient
+from src.database.database_service import DatabaseService  # Adapted to neomodel client
+from src.clients.llm_client import LLMClient
 from src.config.config import DB_URI, DB_USER, DB_PASSWORD, DB_DATABASE, RAW_DATASET_PATH
 
 logger = logging.getLogger(__name__)
