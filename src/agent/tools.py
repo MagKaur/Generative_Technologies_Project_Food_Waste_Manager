@@ -181,6 +181,9 @@ class AgentTools:
         limit: int = 20,
         require_any_ingredient_match: bool = True,
     ) -> ToolResult:
+        include_list = include_ingredients or []
+        if (len(include_list) == 0) and (not use_pantry_ingredients) and (not use_expiring_from_pantry):
+            require_any_ingredient_match = False
         recipes = self.db.search_recipes(
             user_id=user_id,
             max_minutes=max_minutes,
