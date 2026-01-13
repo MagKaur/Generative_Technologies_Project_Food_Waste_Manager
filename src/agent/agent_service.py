@@ -47,7 +47,10 @@ class AgentService:
 
         # Structured output parser (LangChain)
         # NOTE: LLMClient uses AzureChatOpenAI under self._client.
-        self._structured_llm = self._llm._client.with_structured_output(ToolCall)  # pragma: no cover
+        self._structured_llm = self._llm._client.with_structured_output(
+            ToolCall,
+            method="json_mode",
+        )
 
     def handle_message(self, req: AgentMessage) -> ToolResult:
         """

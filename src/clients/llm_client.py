@@ -136,23 +136,23 @@ class LLMClient:
             Always provide the most reasonable inferred value when data is missing.
             
             JSON SCHEMA
-            {
-            "title": "string",
-            "total_time_minutes": integer,
-            "cuisine": "string",
-            "tags": ["string"],
-            "dietary_profiles": ["string"],
-            "ingredients": [
-            {
-            "name": "string",
-            "amount": number,
-            "unit": "string",
-            "category": "string",
-            "in_seasons": ["string"]
-            }
-            ],
-            "instructions": "string"
-            }
+            {{
+                "title": "string",
+                "total_time_minutes": integer,
+                "cuisine": "string",
+                "tags": ["string"],
+                "dietary_profiles": ["string"],
+                "ingredients": [
+                    {{
+                    "name": "string",
+                    "amount": number,
+                    "unit": "string",
+                    "category": "string",
+                    "in_seasons": ["string"]
+                    }}
+                    ],
+                "instructions": "string"
+            }}
         """
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
@@ -217,7 +217,7 @@ class LLMClient:
         JSON Schema:
         {{
           "matches": [
-            {{
+            {{{{
               "input_index": "integer",
               "matched_name": "string|null",
               "confidence": "float"  // 0.0 to 1.0
