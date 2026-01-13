@@ -26,6 +26,7 @@ async def agent_message(
     pdf_bytes = await pdf.read() if pdf else None
     image_bytes = await image.read() if image else None
 
+
     req = AgentMessage(
         user_id=user_id,
         message=message,
