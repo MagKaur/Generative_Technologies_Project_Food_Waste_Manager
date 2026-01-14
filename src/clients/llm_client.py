@@ -80,7 +80,27 @@ class LLMClient:
             If not obvious, infer the most likely category such as vegetable, meat, dairy, grain, spice or other.
             
             SEASONALITY RULES
-            If seasonality is not explicitly stated, always set in_seasons to year-round.
+            Assign seasons logically:
+            Autumn/Winter (Sep-Feb): Post-fall harvest, cold-stored roots, or winter imports. E.g., Carrots: Fall harvest, winter storage; Mandarins: Mediterranean peak Dec-Jan.
+            Spring (Mar-May): Early growth or post-winter release. E.g., Spinach: Cool-spring harvest Apr-May; Radishes: Quick spring growth.
+            Summer (Jun-Aug): Heat-loving crops. E.g., Strawberries: Jun-Jul peak; Tomatoes: Jul-Aug ripening.
+            Year-round: Greenhouse-grown, steady imports, or no clear peak (e.g., onions, garlic). Rule: If seasonality isn't explicit, default to "year-round" – no guessing.
+            
+            Handle ambiguities: Use lists for multi-seasons (e.g., apples: autumn, winter, spring). Prioritize peak availability for hybrids (e.g., pumpkin: autumn, extends to winter).
+            
+            Few-Shot Examples:
+            
+            Carrot: ["autumn", "winter"]
+            Mandarins: ["autumn", "winter"]
+            Strawberries: ["summer"]
+            Spinach: ["spring"]
+            Onion: ["year-round"]
+            Garlic: ["year-round"]
+            Pumpkin: ["autumn", "winter"]
+            Tomatoes: ["summer"]
+            Apples: ["autumn", "winter", "spring"]
+            Ginger: ["year-round"]
+            etc...
             
             ABBREVIATION AND UNIT NORMALIZATION
             The system must recognize and normalize cooking abbreviations including but not limited to:

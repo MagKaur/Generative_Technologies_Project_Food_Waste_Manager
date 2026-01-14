@@ -11,3 +11,4 @@ uuid_utils
 easyocr
 fastapi
 python-multipart
+pdfplumber
