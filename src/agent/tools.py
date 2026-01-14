@@ -157,6 +157,8 @@ class AgentTools:
 
     def show_pantry(self, user_id: str) -> ToolResult:
         pantry = self.db.get_user_pantry(user_id)
+        if not pantry:
+            pantry = self.db.get_user_pantry_by_name(user_id)
         return ToolResult(
             type="pantry_list",
             message=f"Spiżarnia: {len(pantry)} pozycji.",

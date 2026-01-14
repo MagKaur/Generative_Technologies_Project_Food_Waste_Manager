@@ -677,6 +677,34 @@ class DatabaseService:
             for r in rows
         ]
 
+    def get_user_pantry_by_name(self, user_id: str) -> List[Dict[str, Any]]:
+        query = """
+           MATCH (u:User {name: $user_id})-[:OWNS]->(p:PantryItem)
+           OPTIONAL MATCH (p)-[:IS_OF_INGREDIENT]->(i:Ingredient)
+           RETURN
+             p.uuid AS pantry_item_uuid,
+             coalesce(i.name, "") AS ingredient_name,
+             p.quantity AS quantity,
+             p.unit AS unit,
+             p.expiration_date AS expiration_date
+           ORDER BY
+             (p.expiration_date IS NULL) ASC,
+             p.expiration_date ASC,
+             ingredient_name ASC
+           """
+        rows, _ = db.cypher_query(query, {"user_id": user_id})
+
+        return [
+            {
+                "pantry_item_uuid": r[0],
+                "ingredient_name": r[1],
+                "quantity": r[2],
+                "unit": r[3],
+                "expiration_date": r[4],
+            }
+            for r in rows
+        ]
+
     def get_missing_ingredients_for_recipe(self, user_id: str, recipe_id_or_title: str) -> Dict[str, Any]:
         query = """
         MATCH (r:Recipe)
