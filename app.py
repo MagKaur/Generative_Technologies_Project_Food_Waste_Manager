@@ -4,10 +4,14 @@ from datetime import datetime
 import os
 import uuid
 import time
+import streamlit as st
+import requests
+
 
 st.set_page_config(page_title="Chat Assistant", layout="centered")
 INGREDIENTS_FILE = "ingredients.json"
 DATA_FILE = "chats.json"
+BACKEND_URL = "http://localhost:8000"  # http://backend:8000
 
 def load_ingredients():
     if os.path.exists(INGREDIENTS_FILE):
@@ -86,7 +90,24 @@ elif page == "Chat":
             chat["messages"].append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
-            response = f"You said: '{prompt}'. This is a sample reply."
+            payload = {
+                "message": prompt
+            }
+
+            try:
+                r = requests.post(
+                    f"{BACKEND_URL}/agent/message",
+                    data={
+                        "message": prompt,
+                        "user_id": st.session_state.current_chat_id
+                    },
+                    timeout=30
+                )
+                r.raise_for_status()
+                response = r.json().get("message", "No response from backend")
+            except Exception as e:
+                response = f"Backend error: {e}"
+
             chat["messages"].append({"role": "assistant", "content": response})
             with st.chat_message("assistant"):
                 st.markdown(response)
@@ -96,7 +117,24 @@ elif page == "Chat":
         if prompt := st.chat_input("Type your message"):
             new_id = str(uuid.uuid4())
             name = generate_chat_name(prompt)
-            response = f"You said: '{prompt}'. This is a sample reply."
+            payload = {
+                "message": prompt
+            }
+
+            try:
+                r = requests.post(
+                    f"{BACKEND_URL}/agent/message",
+                    data={
+                        "message": prompt,
+                        "user_id": st.session_state.current_chat_id
+                    },
+                    timeout=30
+                )
+                r.raise_for_status()
+                response = r.json().get("message", "No response from backend")
+            except Exception as e:
+                response = f"Backend error: {e}"
+
             st.session_state.chats[new_id] = {
                 "name": name,
                 "messages": [
