@@ -29,7 +29,7 @@ class ToolName(str, Enum):
     SHOW_PANTRY = "show_pantry"
 
     # Recipes search / filters
-    SEARCH_RECIPES = "search_recipes"
+    GRAPH_RAG_SEARCH_RECIPES = "graph_rag_search_recipes"
     SEARCH_FROM_PANTRY = "search_recipes_from_pantry"
     SEARCH_FROM_LIST = "search_recipes_from_list"
     SEARCH_EXPIRING = "search_recipes_expiring"
@@ -40,6 +40,7 @@ class ToolName(str, Enum):
 
     # RAG
     RAG_SEARCH = "rag_search"
+    RAG_SEARCH_RECIPES = "rag_search_recipes"
 
     # Compositions
     PLAN_COURSES = "plan_courses_for_guests"
@@ -166,9 +167,9 @@ class AgentTools:
         )
 
     # -------------------------
-    # C) SEARCH RECIPES (core)
+    # C) SEARCH RECIPES (core, graph_rag)
     # -------------------------
-    def search_recipes(
+    def graph_rag_search_recipes(
         self,
         user_id: Optional[str] = None,
         max_minutes: Optional[int] = None,
@@ -207,13 +208,13 @@ class AgentTools:
         )
 
     def search_recipes_from_pantry(self, user_id: str, **kwargs) -> ToolResult:
-        return self.search_recipes(user_id=user_id, use_pantry_ingredients=True, include_ingredients=None, **kwargs)
+        return self.graph_rag_search_recipes(user_id=user_id, use_pantry_ingredients=True, include_ingredients=None, **kwargs)
 
     def search_recipes_from_list(self, ingredients: List[str], **kwargs) -> ToolResult:
-        return self.search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
+        return self.graph_rag_search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
 
     def search_recipes_expiring(self, user_id: str, days: int = 3, **kwargs) -> ToolResult:
-        return self.search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
+        return self.graph_rag_search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
 
     def search_recipes_under_time(self, minutes: int, limit: int = 20) -> ToolResult:
         recipes = self.db.find_recipes_under_time(minutes=minutes, limit=limit)
@@ -235,7 +236,7 @@ class AgentTools:
         )
 
     # -------------------------
-    # E) RAG
+    # E) RAG (only chunks)
     # -------------------------
     def rag_search(self, query_text: str, k: int = 5) -> ToolResult:
         # vector_search expects embedding vector; we can embed via ingestion.llm (available there)
@@ -245,6 +246,87 @@ class AgentTools:
             type="rag_chunks",
             message=f"Znalazłam {len(chunks)} pasujących fragmentów.",
             data={"chunks": chunks, "k": k},
+        )
+
+    # -------------------------
+    # E) RAG (aggregated chunks + recipies results )
+    # -------------------------
+    def rag_search_recipes(
+            self,
+            query_text: str,
+            k_chunks: int = 30,
+            limit_recipes: int = 5,
+            chunks_per_recipe: int = 3,
+            max_minutes: Optional[int] = None,
+    ) -> ToolResult:
+        """
+        Classic RAG baseline (recipe-level):
+        - Embed the query
+        - Vector search over chunks
+        - Aggregate chunk hits into recipe-level ranked results (DB does the aggregation)
+        - Return recipes_list payload comparable with GraphRAG output
+        """
+
+        # --- basic input hygiene ---
+        query_text = (query_text or "").strip()
+        if not query_text:
+            return ToolResult(
+                type="error",
+                message="Brakuje query_text do Classic RAG.",
+                data={"mode": "classic_rag", "query_text": query_text},
+            )
+
+        # ensure ints are sane (avoid crazy values from LLM)
+        try:
+            k_chunks = int(k_chunks)
+        except Exception:
+            k_chunks = 30
+        try:
+            limit_recipes = int(limit_recipes)
+        except Exception:
+            limit_recipes = 5
+        try:
+            chunks_per_recipe = int(chunks_per_recipe)
+        except Exception:
+            chunks_per_recipe = 3
+
+        # clamp
+        k_chunks = max(1, min(k_chunks, 200))
+        limit_recipes = max(1, min(limit_recipes, 50))
+        chunks_per_recipe = max(1, min(chunks_per_recipe, 10))
+
+        if max_minutes is not None:
+            try:
+                max_minutes = int(max_minutes)
+            except Exception:
+                max_minutes = None
+
+        # --- STEP 1: embed query text ---
+        query_emb = self.ingestion._llm.embed_text(query_text)
+
+        # --- STEP 2: classic RAG retrieval aggregated to recipes ---
+        recipes = self.db.rag_search_recipes(
+            query_embedding=query_emb,
+            k_chunks=k_chunks,
+            limit_recipes=limit_recipes,
+            chunks_per_recipe=chunks_per_recipe,
+            max_minutes=max_minutes,
+        )
+
+        return ToolResult(
+            type="recipes_list",
+            message=f"Classic RAG: found {len(recipes)} recipes.",
+            data={
+                "mode": "classic_rag",
+                "query_text": query_text,
+                "params": {
+                    "k_chunks": k_chunks,
+                    "limit_recipes": limit_recipes,
+                    "chunks_per_recipe": chunks_per_recipe,
+                    "max_minutes": max_minutes,
+                },
+                "recipes": recipes,
+            },
         )
 
     # -------------------------

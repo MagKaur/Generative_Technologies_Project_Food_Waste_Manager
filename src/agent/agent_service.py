@@ -214,7 +214,7 @@ class AgentService:
             args["user_id"] = req.user_id
 
         if tool == ToolName.SEARCH_RECIPES.value:
-            return self._tools.search_recipes(**args)
+            return self._tools.graph_rag_search_recipes(**args)
 
         if tool == ToolName.SEARCH_FROM_PANTRY.value:
             user_id = args.get("user_id") or req.user_id
@@ -270,6 +270,24 @@ class AgentService:
             query_text = args.get("query_text") or args.get("query") or req.message
             k = int(args.get("k") or 5)
             return self._tools.rag_search(query_text=query_text, k=k)
+
+        if tool == ToolName.RAG_SEARCH_RECIPES.value:
+            query_text = args.get("query_text") or args.get("query") or req.message
+
+            k_chunks = int(args.get("k_chunks") or 30)
+            limit_recipes = int(args.get("limit_recipes") or 5)
+            chunks_per_recipe = int(args.get("chunks_per_recipe") or 3)
+
+            max_minutes = args.get("max_minutes")
+            max_minutes = int(max_minutes) if max_minutes is not None else None
+
+            return self._tools.rag_search_recipes(
+                query_text=query_text,
+                k_chunks=k_chunks,
+                limit_recipes=limit_recipes,
+                chunks_per_recipe=chunks_per_recipe,
+                max_minutes=max_minutes,
+            )
 
         if tool == ToolName.PLAN_COURSES.value:
             return self._tools.plan_courses_for_guests(**args)

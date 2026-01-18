@@ -28,6 +28,11 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - If the user asks for something unrelated or ambiguous, choose tool="unknown" with a helpful reason in args.reason.
             - Never hallucinate IDs or file bytes. If something is missing, set args fields to null or omit them and explain in args.reason.
             
+            MODE OVERRIDE (for evaluation; must be deterministic)
+            - If the user message contains "[MODE=RAG]", you MUST choose tool="rag_search_recipes".
+            - If the user message contains "[MODE=GRAPH]", you MUST choose tool="search_recipes".
+            - If no MODE is specified, you MUST default to tool="search_recipes".
+            
             USER CONTEXT
             - user_id may be provided (string UUID).
             - attachments may be present:

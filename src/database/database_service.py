@@ -1,6 +1,7 @@
 import logging
 import uuid
 import os
+from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -754,6 +755,7 @@ class DatabaseService:
             "missing_ingredients": r[4] or [],
         }
 
+    #traditional RAG (chunks only R=retrival)
     def vector_search_chunks(self, query_embedding: List[float], k: int = 8) -> List[Dict[str, Any]]:
         cypher = """
         CALL db.index.vector.queryNodes('chunk_embedding', $k, $embedding)
@@ -768,7 +770,8 @@ class DatabaseService:
           score AS score,
           d.uuid AS document_uuid,
           r.uuid AS recipe_uuid,
-          r.title AS recipe_title
+          r.title AS recipe_title,
+          r.total_time_minutes AS total_time_minutes
         ORDER BY score DESC
         """
         rows, _ = db.cypher_query(cypher, {"k": k, "embedding": query_embedding})
@@ -781,6 +784,85 @@ class DatabaseService:
                 "document_uuid": r[3],
                 "recipe_uuid": r[4],
                 "recipe_title": r[5],
+                "total_time_minutes": r[6],
             }
             for r in rows
         ]
+
+    #traditional RAG (aggregation results method)
+    def rag_search_recipes(
+            self,
+            query_embedding: List[float],
+            k_chunks: int = 30,
+            limit_recipes: int = 5,
+            chunks_per_recipe: int = 3,
+            max_minutes: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Classic RAG (baseline) – vector-based retrieval over chunks,
+        aggregated to the recipe level.
+
+        Steps:
+        1) vector_search_chunks(query_embedding, k_chunks) -> list of chunks
+        2) group chunks by recipe_uuid
+        3) rank recipes by the best (maximum) chunk similarity score
+        4) return top recipes with top chunks as textual context
+        5) optionally filter recipes by max_minutes
+           (possible because total_time_minutes is now included)
+        """
+
+        # Retrieve top-k chunks using vector similarity
+        hits = self.vector_search_chunks(query_embedding=query_embedding, k=k_chunks)
+
+        # 1) Group chunks by recipe
+        grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for h in hits:
+            recipe_id = h.get("recipe_uuid")
+            if not recipe_id:
+                continue
+            grouped[recipe_id].append(h)
+
+        # 2) Build recipe-level results
+        results: List[Dict[str, Any]] = []
+
+        for recipe_id, recipe_hits in grouped.items():
+            # Sort chunks within a recipe by similarity score (descending)
+            recipe_hits_sorted = sorted(
+                recipe_hits,
+                key=lambda x: (x.get("score") is None, -(x.get("score") or 0.0))
+            )
+
+            best_chunk = recipe_hits_sorted[0]
+            total_time = best_chunk.get("total_time_minutes")
+
+            # 3) Optional time filter
+            if max_minutes is not None and total_time is not None and total_time > max_minutes:
+                continue
+
+            # 4) Recipe score = best chunk similarity score
+            best_score = best_chunk.get("score") or 0.0
+
+            results.append(
+                {
+                    "recipe_uuid": recipe_id,
+                    "title": best_chunk.get("recipe_title"),
+                    "total_time_minutes": total_time,
+                    "rag_best_score": best_score,
+                    "rag_top_chunks": [
+                        {
+                            "chunk_uuid": c.get("chunk_uuid"),
+                            "score": c.get("score"),
+                            "text": c.get("text"),
+                        }
+                        for c in recipe_hits_sorted[:chunks_per_recipe]
+                    ],
+                }
+            )
+
+        # 5) Rank recipes by best similarity score
+        results = sorted(
+            results,
+            key=lambda r: -(r.get("rag_best_score") or 0.0)
+        )
+
+        return results[:limit_recipes]
