@@ -1,0 +1,4 @@
+POST http://127.0.0.1:8000/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id=test&message=Co%20mog%C4%99%20ugotowa%C4%87%20w%2030%20minut%3F

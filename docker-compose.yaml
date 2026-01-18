@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/<PASSWORD_CHANGE_ME>
+    volumes:
+      - ./neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p <PASSWORD_CHANGE_ME> 'RETURN 1;' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  init-app:
+    build: .
+    container_name: init-app
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      - DB_URI=neo4j://neo4j:7687
+      - DB_USER=neo4j
+      - DB_PASSWORD=<PASSWORD_CHANGE_ME>
+      - DB_DATABASE=neo4j
+      - RAW_DATASET_PATH=/app/src/data/
+      - AZURE_OPENAI_MODEL=gpt-4o
+      - AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+      - EMBEDDING_DIMS=1536
+      - AZURE_OPENAI_ENDPOINT=<CHANGE_ME>
+      - AZURE_OPENAI_API_KEY=<CHANGE_ME>
+      - OPENAI_API_VERSION=2024-12-01-preview
+      - PYTHONPATH=/app/src
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    networks:
+      - app-network
+    command: >
+      sh -c "python -c \"import os; from neo4j import GraphDatabase; pw=os.environ.get('DB_PASSWORD'); assert pw, 'DB_PASSWORD is not set'; d=GraphDatabase.driver('neo4j://neo4j:7687', auth=('neo4j', pw)); d.verify_connectivity(); print('Neo4j gotowy!'); d.close()\" &&
+             cd /app && PYTHONPATH=/app/src python -m src.database.init_loader"
+
+networks:
+  app-network:
+    driver: bridge
