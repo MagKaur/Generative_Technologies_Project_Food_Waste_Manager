@@ -4,14 +4,14 @@ from datetime import datetime
 import os
 import uuid
 import time
-import streamlit as st
 import requests
+import os
 
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="Chat Assistant", layout="centered")
 INGREDIENTS_FILE = "ingredients.json"
 DATA_FILE = "chats.json"
-BACKEND_URL = "http://localhost:8000"  # http://backend:8000
 
 def load_ingredients():
     if os.path.exists(INGREDIENTS_FILE):
@@ -104,14 +104,37 @@ elif page == "Chat":
                     timeout=30
                 )
                 r.raise_for_status()
-                response = r.json().get("message", "No response from backend")
-            except Exception as e:
-                response = f"Backend error: {e}"
+                backend_response = r.json()
 
-            chat["messages"].append({"role": "assistant", "content": response})
+                response_type = backend_response.get("type")
+                message = backend_response.get("message")
+                data = backend_response.get("data")
+
+                if response_type == "answer":
+                    assistant_text = message
+                elif response_type == "error":
+                    assistant_text = message
+                else:
+                    assistant_text = "Unknown response type from backend"
+
+            except Exception as e:
+                assistant_text = f"Backend error: {e}"
+                data = None
+
+            chat["messages"].append({"role": "assistant", "content": assistant_text})
+
             with st.chat_message("assistant"):
-                st.markdown(response)
+                st.markdown(assistant_text)
+
+                if data and data.get("tool") == "search_recipes":
+                    st.markdown("Recipe suggestions")
+
+                if data:
+                    with st.expander("Backend response details"):
+                        st.json(data)
+
             save_chats(st.session_state.chats)
+
 
     else:
         if prompt := st.chat_input("Type your message"):
@@ -131,24 +154,44 @@ elif page == "Chat":
                     timeout=30
                 )
                 r.raise_for_status()
-                response = r.json().get("message", "No response from backend")
+                backend_response = r.json()
+
+                response_type = backend_response.get("type")
+                message = backend_response.get("message")
+                data = backend_response.get("data")
+
+                if response_type == "answer":
+                    assistant_text = message
+                elif response_type == "error":
+                    assistant_text = f"{message}"
+                else:
+                    assistant_text = "Unknown response type from backend"
+
             except Exception as e:
-                response = f"Backend error: {e}"
+                assistant_text = f"Backend error: {e}"
+                data = None
 
             st.session_state.chats[new_id] = {
                 "name": name,
                 "messages": [
                     {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": response}
+                    {"role": "assistant", "content": assistant_text}
                 ],
                 "created_at": datetime.now().isoformat()
             }
-            st.session_state.current_chat_id = new_id
-            with st.chat_message("user"):
-                st.markdown(prompt)
+
             with st.chat_message("assistant"):
-                st.markdown(response)
+                st.markdown(assistant_text)
+
+                if data and data.get("tool") == "search_recipes":
+                    st.markdown("Recipe suggestions")
+
+                if data:
+                    with st.expander("Backend response details"):
+                        st.json(data)
+
             save_chats(st.session_state.chats)
+
 
 elif page == "Add Ingredients":
     st.title("Add Ingredient")
