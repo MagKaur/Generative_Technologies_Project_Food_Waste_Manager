@@ -755,7 +755,84 @@ class DatabaseService:
             "missing_ingredients": r[4] or [],
         }
 
-    #traditional RAG (chunks only R=retrival)
+    def search_recipes_by_season(
+            self,
+            season: str,
+            category: Optional[str] = "vegetable",
+            max_minutes: Optional[int] = None,
+            required_dietary_profiles: Optional[List[str]] = None,
+            excluded_tags: Optional[List[str]] = None,
+            limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Graph retrieval: find recipes that use ingredients in a given season.
+        Optionally filter by ingredient category (default: "vegetable").
+        """
+
+        season = (season or "").strip().lower()
+        if not season:
+            return []
+
+        required_dietary_profiles = [
+            p.strip().lower() for p in (required_dietary_profiles or []) if p and p.strip()
+        ]
+        excluded_tags = [t.strip().lower() for t in (excluded_tags or []) if t and t.strip()]
+
+        category = (category or "").strip().lower() if category else None
+
+        cypher = """
+        MATCH (r:Recipe)-[:HAS_INGREDIENT]->(ing:Ingredient)-[:IN_SEASON]->(s:Season)
+        WHERE toLower(s.name) = $season
+          AND ($category IS NULL OR toLower(ing.category) = $category)
+          AND ($max_minutes IS NULL OR r.total_time_minutes IS NULL OR r.total_time_minutes <= $max_minutes)
+
+          // required dietary profiles
+          AND (size($required_profiles) = 0 OR all(p IN $required_profiles WHERE EXISTS {
+            MATCH (r)-[:SUITABLE_FOR]->(dp:DietaryProfile)
+            WHERE toLower(dp.name) = p
+          }))
+
+          // excluded tags
+          AND (size($excluded_tags) = 0 OR NOT EXISTS {
+            MATCH (r)-[:HAS_TAG]->(t:Tag)
+            WHERE toLower(t.name) IN $excluded_tags
+          })
+
+        WITH r, collect(DISTINCT ing.name) AS seasonal_ingredients, count(DISTINCT ing) AS seasonal_count
+
+        RETURN
+          r.uuid AS recipe_uuid,
+          r.title AS title,
+          r.total_time_minutes AS total_time_minutes,
+          seasonal_ingredients AS seasonal_ingredients,
+          seasonal_count AS seasonal_count
+        ORDER BY seasonal_count DESC, coalesce(r.total_time_minutes, 999999) ASC, title ASC
+        LIMIT $limit
+        """
+
+        params = {
+            "season": season,
+            "category": category,
+            "max_minutes": max_minutes,
+            "required_profiles": required_dietary_profiles,
+            "excluded_tags": excluded_tags,
+            "limit": limit,
+        }
+
+        rows, _ = db.cypher_query(cypher, params)
+
+        return [
+            {
+                "recipe_uuid": r[0],
+                "title": r[1],
+                "total_time_minutes": r[2],
+                "seasonal_ingredients": r[3] or [],
+                "seasonal_count": r[4] or 0,
+            }
+            for r in rows
+        ]
+
+    #traditional RAG (chunks only - retrival)
     def vector_search_chunks(self, query_embedding: List[float], k: int = 8) -> List[Dict[str, Any]]:
         cypher = """
         CALL db.index.vector.queryNodes('chunk_embedding', $k, $embedding)

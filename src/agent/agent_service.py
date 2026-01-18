@@ -292,19 +292,20 @@ class AgentService:
         if tool == ToolName.PLAN_COURSES.value:
             return self._tools.plan_courses_for_guests(**args)
 
-        if tool == ToolName.SEASONAL_CUISINE.value:
-            cuisine = args.get("cuisine")
-            season = args.get("season")
-            if not cuisine or not season:
-                return ToolResult(
-                    type="error",
-                    message="Brakuje cuisine/season.",
-                    data={"tool": tool, "args": args},
-                )
-            return self._tools.seasonal_cuisine_query(**args)
+        if tool == ToolName.SEASONAL_RECIPES.value:
+            season = args.get("season") or "winter"
+            category = args.get("category") or "vegetable"
 
-        return ToolResult(
-            type="error",
-            message=f"Nieznany wariant search-like: {tool}",
-            data={"tool": tool, "args": args},
-        )
+            max_minutes = args.get("max_minutes")
+            max_minutes = int(max_minutes) if max_minutes is not None else None
+
+            limit = int(args.get("limit") or 20)
+
+            return self._tools.seasonal_recipes_query(
+                season=season,
+                category=category,
+                max_minutes=max_minutes,
+                required_dietary_profiles=args.get("required_dietary_profiles"),
+                excluded_tags=args.get("excluded_tags"),
+                limit=limit,
+            )

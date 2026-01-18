@@ -44,7 +44,7 @@ class ToolName(str, Enum):
 
     # Compositions
     PLAN_COURSES = "plan_courses_for_guests"
-    SEASONAL_CUISINE = "seasonal_cuisine_query"
+    SEASONAL_RECIPES = "seasonal_recipes"
 
 
 @dataclass
@@ -233,6 +233,44 @@ class AgentTools:
             type="missing_ingredients",
             message=f"Lista zakupów do: {missing.get('title', recipe_id_or_title)}",
             data=missing,
+        )
+
+    # -------------------------
+    # D) SEASONAL RECIPES
+    # -------------------------
+    def seasonal_recipes(
+            self,
+            season: str,
+            category: str = "vegetable",
+            max_minutes: Optional[int] = None,
+            required_dietary_profiles: Optional[List[str]] = None,
+            excluded_tags: Optional[List[str]] = None,
+            limit: int = 20,
+    ) -> ToolResult:
+        """
+        Graph-based seasonal query (winter vegetables etc.).
+        This is a proper GraphRAG-style retrieval: Recipe -> Ingredient -> Season.
+        """
+
+        recipes = self.db.search_recipes_by_season(
+            season=season,
+            category=category,
+            max_minutes=max_minutes,
+            required_dietary_profiles=required_dietary_profiles,
+            excluded_tags=excluded_tags,
+            limit=limit,
+        )
+
+        return ToolResult(
+            type="recipes_list",
+            message=f"Seasonal recipes for season={season}, category={category}: {len(recipes)} results.",
+            data={
+                "mode": "graph_seasonal",
+                "season": season,
+                "category": category,
+                "max_minutes": max_minutes,
+                "recipes": recipes,
+            },
         )
 
     # -------------------------

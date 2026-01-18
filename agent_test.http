@@ -108,3 +108,15 @@ POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
 user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o uuid: WSTAW_TU_RECIPE_UUID
+
+### 13) Jakie przepisy mogę ugotować z sezonowymi warzywami (zimowymi)
+POST http://127.0.0.1:8000/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe warzywa (zimowe)?
+
+### Jakie przepisy mogę ugotować z sezonowymi produktami (zimowymi)
+POST http://127.0.0.1:8000/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe produkty (zimowe)?

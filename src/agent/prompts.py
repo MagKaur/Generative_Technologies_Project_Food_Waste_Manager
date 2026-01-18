@@ -47,6 +47,8 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - "Pokaż spiżarnię" -> show_pantry
             - "Zrób listę zakupów do ..." -> get_missing_ingredients
             - "Dodaj ten przepis z linku/PDF/zdjęcia" -> ingest tools
+            - "warzywa sezonowe ..." -> seasonal_recipes_query
+            - "produkty sezonowe ..." -> seasonal_recipes_query
             
             {available_tools_markdown(tool_names)}
             
@@ -103,6 +105,18 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - use_expiring_from_pantry: bool
             - expiring_days: int
             - limit_each: int
+            
+            6) seasonal_recipes_query
+            args:
+            - season: string (e.g. "winter", "spring", "summer", "autumn")
+            - category: string|null (use "vegetable" for seasonal vegetables)
+            - max_minutes: int|null
+            - required_dietary_profiles: [string]|null
+            - excluded_tags: [string]|null
+            - limit: int (default 20)
+            
+            If user asks about "warzywa sezonowe zimowe", choose:
+            tool="seasonal_recipes_query" with args: {"season":"winter","category":"vegetable"}.
             
             REQUIRED JSON SCHEMA (ToolCall)
             {{{{
