@@ -115,6 +115,14 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - excluded_tags: [string]|null
             - limit: int (default 20)
             
+            7) rag_search_recipes
+            args:
+            - query_text: string|null (if missing, backend uses message)
+            - max_minutes: int|null
+            - k_chunks: int (default 30)
+            - limit_recipes: int (default 5)
+            - chunks_per_recipe: int (default 3)
+            
             SEASONAL RULES
             - If the user asks about seasonal dishes/ingredients (mentions: "sezonowe", "zimowe", "wiosenne", "letnie", "jesienne"),
               choose tool="seasonal_recipes".
