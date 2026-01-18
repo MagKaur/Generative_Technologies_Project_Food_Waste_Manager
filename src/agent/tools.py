@@ -29,7 +29,7 @@ class ToolName(str, Enum):
     SHOW_PANTRY = "show_pantry"
 
     # Recipes search / filters
-    GRAPH_RAG_SEARCH_RECIPES = "graph_rag_search_recipes"
+    SEARCH_RECIPES = "search_recipes"
     SEARCH_FROM_PANTRY = "search_recipes_from_pantry"
     SEARCH_FROM_LIST = "search_recipes_from_list"
     SEARCH_EXPIRING = "search_recipes_expiring"
@@ -169,7 +169,7 @@ class AgentTools:
     # -------------------------
     # C) SEARCH RECIPES (core, graph_rag)
     # -------------------------
-    def graph_rag_search_recipes(
+    def search_recipes(
         self,
         user_id: Optional[str] = None,
         max_minutes: Optional[int] = None,
@@ -208,13 +208,13 @@ class AgentTools:
         )
 
     def search_recipes_from_pantry(self, user_id: str, **kwargs) -> ToolResult:
-        return self.graph_rag_search_recipes(user_id=user_id, use_pantry_ingredients=True, include_ingredients=None, **kwargs)
+        return self.search_recipes(user_id=user_id, use_pantry_ingredients=True, include_ingredients=None, **kwargs)
 
     def search_recipes_from_list(self, ingredients: List[str], **kwargs) -> ToolResult:
-        return self.graph_rag_search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
+        return self.search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
 
     def search_recipes_expiring(self, user_id: str, days: int = 3, **kwargs) -> ToolResult:
-        return self.graph_rag_search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
+        return self.search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
 
     def search_recipes_under_time(self, minutes: int, limit: int = 20) -> ToolResult:
         recipes = self.db.find_recipes_under_time(minutes=minutes, limit=limit)
@@ -235,26 +235,54 @@ class AgentTools:
             data=missing,
         )
 
+    def _normalize_season(self, season: Optional[str]) -> str:
+        """
+        Normalize any user input into one of:
+        winter | spring | summer | autumn
+
+        Default: winter
+        """
+        s = (season or "").strip().lower()
+
+        if not s:
+            return "winter"
+
+        # Polish + English variants
+        if any(x in s for x in ["zim", "winter"]):
+            return "winter"
+
+        if any(x in s for x in ["wios", "spring"]):
+            return "spring"
+
+        if any(x in s for x in ["lat", "let", "summer"]):
+            return "summer"
+
+        if any(x in s for x in ["jes", "autumn", "fall"]):
+            return "autumn"
+
+        # fallback
+        return "winter"
+
     # -------------------------
     # D) SEASONAL RECIPES
     # -------------------------
     def seasonal_recipes(
             self,
-            season: str,
-            category: str = "vegetable",
+            season: Optional[str] = None,
             max_minutes: Optional[int] = None,
             required_dietary_profiles: Optional[List[str]] = None,
             excluded_tags: Optional[List[str]] = None,
             limit: int = 20,
     ) -> ToolResult:
         """
-        Graph-based seasonal query (winter vegetables etc.).
-        This is a proper GraphRAG-style retrieval: Recipe -> Ingredient -> Season.
+        Graph-based seasonal recipes.
+        Season is normalized to one of: winter | spring | summer | autumn
         """
 
+        season_norm = self._normalize_season(season)
+
         recipes = self.db.search_recipes_by_season(
-            season=season,
-            category=category,
+            season=season_norm,
             max_minutes=max_minutes,
             required_dietary_profiles=required_dietary_profiles,
             excluded_tags=excluded_tags,
@@ -263,11 +291,10 @@ class AgentTools:
 
         return ToolResult(
             type="recipes_list",
-            message=f"Seasonal recipes for season={season}, category={category}: {len(recipes)} results.",
+            message=f"Znalazłam {len(recipes)} przepisów na sezon: {season_norm}.",
             data={
                 "mode": "graph_seasonal",
-                "season": season,
-                "category": category,
+                "season": season_norm,
                 "max_minutes": max_minutes,
                 "recipes": recipes,
             },
@@ -427,40 +454,4 @@ class AgentTools:
             data={"appetizer": appetizer, "main": main, "dessert": dessert},
         )
 
-    def seasonal_cuisine_query(
-        self,
-        cuisine: str,
-        season: str,
-        user_id: Optional[str] = None,
-        max_minutes: Optional[int] = None,
-        required_dietary_profiles: Optional[List[str]] = None,
-        excluded_tags: Optional[List[str]] = None,
-        limit: int = 20,
-    ) -> ToolResult:
-        """
-        MVP stub:
-        - We don't have explicit cuisine/season filters in DatabaseService.search_recipes.
-        - So we approximate cuisine via tags (e.g., 'indian') and season via ingredient list produced by LLM in the orchestrator.
-        TODO: Add a dedicated cypher using (r)-[:OF_CUISINE]->(Cuisine) and Ingredient-Season relations.
-        """
-        approx_tags = [cuisine.lower()]
-        recipes = self.db.search_recipes(
-            user_id=user_id,
-            max_minutes=max_minutes,
-            required_dietary_profiles=required_dietary_profiles,
-            excluded_tags=excluded_tags,
-            include_ingredients=None,  # let orchestrator pass seasonal ingredients if extracted
-            include_all_ingredients=False,
-            use_pantry_ingredients=False,
-            use_expiring_from_pantry=False,
-            require_any_ingredient_match=False,
-            course=None,
-            limit=limit,
-        )
-        # Filter client-side by tag hit if tags exist in results
-        filtered = [r for r in recipes if any(t == cuisine.lower() for t in (r.get("tags") or []))]
-        return ToolResult(
-            type="recipes_list",
-            message=f"Wyniki dla kuchni={cuisine}, sezon={season} (MVP przybliżenie).",
-            data={"recipes": filtered, "cuisine": cuisine, "season": season, "note": "MVP approximation; add DB cypher for cuisine/season for full accuracy."},
-        )
+

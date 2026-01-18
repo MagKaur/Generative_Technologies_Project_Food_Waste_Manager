@@ -189,7 +189,7 @@ class AgentService:
                 ToolName.PLAN_COURSES.value,
                 ToolName.MISSING_INGREDIENTS.value,
                 ToolName.RAG_SEARCH.value,
-                ToolName.SEASONAL_CUISINE.value,
+                ToolName.SEASONAL_RECIPES.value,
             ):
                 return self._execute_search_like(tool, args, req)
 
@@ -214,7 +214,7 @@ class AgentService:
             args["user_id"] = req.user_id
 
         if tool == ToolName.SEARCH_RECIPES.value:
-            return self._tools.graph_rag_search_recipes(**args)
+            return self._tools.search_recipes(**args)
 
         if tool == ToolName.SEARCH_FROM_PANTRY.value:
             user_id = args.get("user_id") or req.user_id
@@ -293,17 +293,13 @@ class AgentService:
             return self._tools.plan_courses_for_guests(**args)
 
         if tool == ToolName.SEASONAL_RECIPES.value:
-            season = args.get("season") or "winter"
-            category = args.get("category") or "vegetable"
-
+            season = args.get("season")  # może być None
             max_minutes = args.get("max_minutes")
             max_minutes = int(max_minutes) if max_minutes is not None else None
-
             limit = int(args.get("limit") or 20)
 
-            return self._tools.seasonal_recipes_query(
+            return self._tools.seasonal_recipes(
                 season=season,
-                category=category,
                 max_minutes=max_minutes,
                 required_dietary_profiles=args.get("required_dietary_profiles"),
                 excluded_tags=args.get("excluded_tags"),

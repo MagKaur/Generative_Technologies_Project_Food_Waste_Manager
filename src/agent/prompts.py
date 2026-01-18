@@ -47,8 +47,9 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - "Pokaż spiżarnię" -> show_pantry
             - "Zrób listę zakupów do ..." -> get_missing_ingredients
             - "Dodaj ten przepis z linku/PDF/zdjęcia" -> ingest tools
-            - "warzywa sezonowe ..." -> seasonal_recipes_query
-            - "produkty sezonowe ..." -> seasonal_recipes_query
+            - "warzywa sezonowe ..." -> seasonal_recipes
+            - "produkty sezonowe ..." -> seasonal_recipes
+            
             
             {available_tools_markdown(tool_names)}
             
@@ -106,17 +107,18 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - expiring_days: int
             - limit_each: int
             
-            6) seasonal_recipes_query
+            6) seasonal_recipes
             args:
-            - season: string (e.g. "winter", "spring", "summer", "autumn")
-            - category: string|null (use "vegetable" for seasonal vegetables)
+            - season: string|null  (any input; backend normalizes to: winter|spring|summer|autumn; default winter)
             - max_minutes: int|null
             - required_dietary_profiles: [string]|null
             - excluded_tags: [string]|null
             - limit: int (default 20)
             
-            If user asks about "warzywa sezonowe zimowe", choose:
-            tool="seasonal_recipes_query" with args: {"season":"winter","category":"vegetable"}.
+            SEASONAL RULES
+            - If the user asks about seasonal dishes/ingredients (mentions: "sezonowe", "zimowe", "wiosenne", "letnie", "jesienne"),
+              choose tool="seasonal_recipes".
+            - If season is not explicitly stated, omit season or set it to null (backend defaults to winter).
             
             REQUIRED JSON SCHEMA (ToolCall)
             {{{{
