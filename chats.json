@@ -1,0 +1,193 @@
+{
+    "e9e7ab06-7ed8-4fb5-9ef8-130ac7815c70": {
+      "name": "Chat 2025-10-28 12:44:45",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hello'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:44:45.021206"
+    },
+    "017a2efc-011f-43f5-95ca-a33b7d3b9e3d": {
+      "name": "test",
+      "messages": [
+        {
+          "role": "user",
+          "content": "test"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'test'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:44:49.075244"
+    },
+    "655d0b9e-c8b7-4dd2-a223-73a0cfaa6103": {
+      "name": "hi",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hi'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:44:53.038156"
+    },
+    "8a460120-a7ed-4f12-85d5-75d167f4bef3": {
+      "name": "Chat 2025-10-28 12:44:55",
+      "messages": [
+        {
+          "role": "user",
+          "content": "whats the weather like today?"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'whats the weather like today?'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:44:55.355407"
+    },
+    "d9c44ffc-06f8-4e12-b339-774cc840cabe": {
+      "name": "Chat 2025-10-28 12:44:57",
+      "messages": [],
+      "created_at": "2025-10-28T12:44:57.220329"
+    },
+    "4beeb0d0-232a-46c1-b7b2-9dbc9c93be70": {
+      "name": "Chat 2025-10-28 12:44:58",
+      "messages": [],
+      "created_at": "2025-10-28T12:44:58.682184"
+    },
+    "39829ff7-e341-48a3-bace-51833ff45b15": {
+      "name": "Chat 2025-10-28 12:45:01",
+      "messages": [],
+      "created_at": "2025-10-28T12:45:01.235834"
+    },
+    "9518d7e5-6670-4e31-baf0-eb090a8a481c": {
+      "name": "a new chat",
+      "messages": [
+        {
+          "role": "user",
+          "content": "a new chat"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'a new chat'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:57:52.431676"
+    },
+    "de6ecb9d-c1f6-49fa-b69d-d95c3732a96a": {
+      "name": "whats the weather like?",
+      "messages": [
+        {
+          "role": "user",
+          "content": "whats the weather like?"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'whats the weather like?'. This is a sample reply."
+        },
+        {
+          "role": "user",
+          "content": "hello"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hello'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T12:59:44.198997"
+    },
+    "d4f07458-50f8-4204-8d27-4d1e4c9d79d4": {
+      "name": "hello",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hello'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T13:05:05.043415"
+    },
+    "cb2521a6-e2a0-4b6c-ac25-a645d5764db8": {
+      "name": "hi, how are you",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi, how are you"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hi, how are you'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T13:07:54.736253"
+    },
+    "e4cc68b7-d843-47f8-b58e-4833c0c22fd5": {
+      "name": "this is a test",
+      "messages": [
+        {
+          "role": "user",
+          "content": "this is a test"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'this is a test'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T13:08:44.646908"
+    },
+    "787dc824-73f8-4a2f-9d19-55e29970d9e5": {
+      "name": "testing once again",
+      "messages": [
+        {
+          "role": "user",
+          "content": "testing once again"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'testing once again'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T13:13:30.023581"
+    },
+    "5e6ecb18-0732-41f1-8e0e-e1e13a5f3d46": {
+      "name": "test 2",
+      "messages": [
+        {
+          "role": "user",
+          "content": "test 2"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'test 2'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T13:50:54.224849"
+    },
+    "aeeefb2b-6713-452c-a60a-bb4dc95d9f5f": {
+      "name": "hi",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "You said: 'hi'. This is a sample reply."
+        }
+      ],
+      "created_at": "2025-10-28T14:22:10.970667"
+    }
+  }

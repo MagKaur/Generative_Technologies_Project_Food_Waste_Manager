@@ -8,6 +8,7 @@ docs/
 # Dane i volumes (mapuj osobno)
 data/
 neo4j_data/
+neo4j_data_new/
 
 # Śmieci i cache
 __pycache__/
@@ -19,7 +20,7 @@ Scratches and Consoles/
 External libraries.txt
 
 # Docker
-Dockerfile
+frontend.Dockerfile
 docker-compose*.yaml
 .dockerignore
 
