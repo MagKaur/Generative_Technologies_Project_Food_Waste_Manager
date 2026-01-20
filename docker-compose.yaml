@@ -1,8 +1,44 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: foodify-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://foodify-backend:8080
+    networks:
+      - app-network
+      -
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: foodify-backend
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+    environment:
+      - DB_URI=neo4j://neo4j:7687
+      - DB_USER=neo4j
+      - DB_PASSWORD=<PASSWORD_CHANGE_ME>
+      - DB_DATABASE=neo4j
+      - RAW_DATASET_PATH=/app/src/data/
+      - AZURE_OPENAI_MODEL=gpt-4o
+      - AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+      - EMBEDDING_DIMS=1536
+      - AZURE_OPENAI_ENDPOINT=<CHANGE_ME>
+      - AZURE_OPENAI_API_KEY=<CHANGE_ME>
+      - OPENAI_API_VERSION=2024-12-01-preview
+      - PYTHONPATH=/app/src
+      - LOG_LEVEL=DEBUG
+
   neo4j:
-    image: neo4j:latest
+    image: neo4j:2025.12.1-community-bullseye
     container_name: neo4j
     ports:
       - "7474:7474"
@@ -10,15 +46,16 @@ services:
     environment:
       - NEO4J_AUTH=neo4j/<PASSWORD_CHANGE_ME>
     volumes:
-      - ./neo4j_data:/data
+      - <CHANGE_ME>:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p <PASSWORD_CHANGE_ME> 'RETURN 1;' || exit 1"]
+      test: [ "CMD-SHELL", "cypher-shell -u neo4j -p TEG_2025 'RETURN 1;' || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
       - app-network
+
 
   init-app:
     build: .
