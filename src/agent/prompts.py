@@ -28,6 +28,11 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - If the user asks for something unrelated or ambiguous, choose tool="unknown" with a helpful reason in args.reason.
             - Never hallucinate IDs or file bytes. If something is missing, set args fields to null or omit them and explain in args.reason.
             
+            MODE OVERRIDE (for evaluation; must be deterministic)
+            - If the user message contains "[MODE=RAG]", you MUST choose tool="rag_search_recipes".
+            - If the user message contains "[MODE=GRAPH]", you MUST choose tool="search_recipes".
+            - If no MODE is specified, you MUST default to tool="search_recipes".
+            
             USER CONTEXT
             - user_id may be provided (string UUID).
             - attachments may be present:
@@ -42,6 +47,9 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - "Pokaż spiżarnię" -> show_pantry
             - "Zrób listę zakupów do ..." -> get_missing_ingredients
             - "Dodaj ten przepis z linku/PDF/zdjęcia" -> ingest tools
+            - "warzywa sezonowe ..." -> seasonal_recipes
+            - "produkty sezonowe ..." -> seasonal_recipes
+            
             
             {available_tools_markdown(tool_names)}
             
@@ -98,6 +106,27 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
             - use_expiring_from_pantry: bool
             - expiring_days: int
             - limit_each: int
+            
+            6) seasonal_recipes
+            args:
+            - season: string|null  (any input; backend normalizes to: winter|spring|summer|autumn; default winter)
+            - max_minutes: int|null
+            - required_dietary_profiles: [string]|null
+            - excluded_tags: [string]|null
+            - limit: int (default 20)
+            
+            7) rag_search_recipes
+            args:
+            - query_text: string|null (if missing, backend uses message)
+            - max_minutes: int|null
+            - k_chunks: int (default 30)
+            - limit_recipes: int (default 5)
+            - chunks_per_recipe: int (default 3)
+            
+            SEASONAL RULES
+            - If the user asks about seasonal dishes/ingredients (mentions: "sezonowe", "zimowe", "wiosenne", "letnie", "jesienne"),
+              choose tool="seasonal_recipes".
+            - If season is not explicitly stated, omit season or set it to null (backend defaults to winter).
             
             REQUIRED JSON SCHEMA (ToolCall)
             {{{{

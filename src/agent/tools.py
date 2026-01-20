@@ -40,10 +40,11 @@ class ToolName(str, Enum):
 
     # RAG
     RAG_SEARCH = "rag_search"
+    RAG_SEARCH_RECIPES = "rag_search_recipes"
 
     # Compositions
     PLAN_COURSES = "plan_courses_for_guests"
-    SEASONAL_CUISINE = "seasonal_cuisine_query"
+    SEASONAL_RECIPES = "seasonal_recipes"
 
 
 @dataclass
@@ -166,7 +167,7 @@ class AgentTools:
         )
 
     # -------------------------
-    # C) SEARCH RECIPES (core)
+    # C) SEARCH RECIPES (core, graph_rag)
     # -------------------------
     def search_recipes(
         self,
@@ -234,8 +235,73 @@ class AgentTools:
             data=missing,
         )
 
+    def _normalize_season(self, season: Optional[str]) -> str:
+        """
+        Normalize any user input into one of:
+        winter | spring | summer | autumn
+
+        Default: winter
+        """
+        s = (season or "").strip().lower()
+
+        if not s:
+            return "winter"
+
+        # Polish + English variants
+        if any(x in s for x in ["zim", "winter"]):
+            return "winter"
+
+        if any(x in s for x in ["wios", "spring"]):
+            return "spring"
+
+        if any(x in s for x in ["lat", "let", "summer"]):
+            return "summer"
+
+        if any(x in s for x in ["jes", "autumn", "fall"]):
+            return "autumn"
+
+        # fallback
+        return "winter"
+
     # -------------------------
-    # E) RAG
+    # D) SEASONAL RECIPES
+    # -------------------------
+    def seasonal_recipes(
+            self,
+            season: Optional[str] = None,
+            max_minutes: Optional[int] = None,
+            required_dietary_profiles: Optional[List[str]] = None,
+            excluded_tags: Optional[List[str]] = None,
+            limit: int = 20,
+    ) -> ToolResult:
+        """
+        Graph-based seasonal recipes.
+        Season is normalized to one of: winter | spring | summer | autumn
+        """
+
+        season_norm = self._normalize_season(season)
+
+        recipes = self.db.search_recipes_by_season(
+            season=season_norm,
+            max_minutes=max_minutes,
+            required_dietary_profiles=required_dietary_profiles,
+            excluded_tags=excluded_tags,
+            limit=limit,
+        )
+
+        return ToolResult(
+            type="recipes_list",
+            message=f"Znalazłam {len(recipes)} przepisów na sezon: {season_norm}.",
+            data={
+                "mode": "graph_seasonal",
+                "season": season_norm,
+                "max_minutes": max_minutes,
+                "recipes": recipes,
+            },
+        )
+
+    # -------------------------
+    # E) RAG (only chunks)
     # -------------------------
     def rag_search(self, query_text: str, k: int = 5) -> ToolResult:
         # vector_search expects embedding vector; we can embed via ingestion.llm (available there)
@@ -245,6 +311,87 @@ class AgentTools:
             type="rag_chunks",
             message=f"Znalazłam {len(chunks)} pasujących fragmentów.",
             data={"chunks": chunks, "k": k},
+        )
+
+    # -------------------------
+    # E) RAG (aggregated chunks + recipies results )
+    # -------------------------
+    def rag_search_recipes(
+            self,
+            query_text: str,
+            k_chunks: int = 30,
+            limit_recipes: int = 5,
+            chunks_per_recipe: int = 3,
+            max_minutes: Optional[int] = None,
+    ) -> ToolResult:
+        """
+        Classic RAG baseline (recipe-level):
+        - Embed the query
+        - Vector search over chunks
+        - Aggregate chunk hits into recipe-level ranked results (DB does the aggregation)
+        - Return recipes_list payload comparable with GraphRAG output
+        """
+
+        # --- basic input hygiene ---
+        query_text = (query_text or "").strip()
+        if not query_text:
+            return ToolResult(
+                type="error",
+                message="Brakuje query_text do Classic RAG.",
+                data={"mode": "classic_rag", "query_text": query_text},
+            )
+
+        # ensure ints are sane (avoid crazy values from LLM)
+        try:
+            k_chunks = int(k_chunks)
+        except Exception:
+            k_chunks = 30
+        try:
+            limit_recipes = int(limit_recipes)
+        except Exception:
+            limit_recipes = 5
+        try:
+            chunks_per_recipe = int(chunks_per_recipe)
+        except Exception:
+            chunks_per_recipe = 3
+
+        # clamp
+        k_chunks = max(1, min(k_chunks, 200))
+        limit_recipes = max(1, min(limit_recipes, 50))
+        chunks_per_recipe = max(1, min(chunks_per_recipe, 10))
+
+        if max_minutes is not None:
+            try:
+                max_minutes = int(max_minutes)
+            except Exception:
+                max_minutes = None
+
+        # --- STEP 1: embed query text ---
+        query_emb = self.ingestion._llm.embed_text(query_text)
+
+        # --- STEP 2: classic RAG retrieval aggregated to recipes ---
+        recipes = self.db.rag_search_recipes(
+            query_embedding=query_emb,
+            k_chunks=k_chunks,
+            limit_recipes=limit_recipes,
+            chunks_per_recipe=chunks_per_recipe,
+            max_minutes=max_minutes,
+        )
+
+        return ToolResult(
+            type="recipes_list",
+            message=f"Classic RAG: found {len(recipes)} recipes.",
+            data={
+                "mode": "classic_rag",
+                "query_text": query_text,
+                "params": {
+                    "k_chunks": k_chunks,
+                    "limit_recipes": limit_recipes,
+                    "chunks_per_recipe": chunks_per_recipe,
+                    "max_minutes": max_minutes,
+                },
+                "recipes": recipes,
+            },
         )
 
     # -------------------------
@@ -307,40 +454,4 @@ class AgentTools:
             data={"appetizer": appetizer, "main": main, "dessert": dessert},
         )
 
-    def seasonal_cuisine_query(
-        self,
-        cuisine: str,
-        season: str,
-        user_id: Optional[str] = None,
-        max_minutes: Optional[int] = None,
-        required_dietary_profiles: Optional[List[str]] = None,
-        excluded_tags: Optional[List[str]] = None,
-        limit: int = 20,
-    ) -> ToolResult:
-        """
-        MVP stub:
-        - We don't have explicit cuisine/season filters in DatabaseService.search_recipes.
-        - So we approximate cuisine via tags (e.g., 'indian') and season via ingredient list produced by LLM in the orchestrator.
-        TODO: Add a dedicated cypher using (r)-[:OF_CUISINE]->(Cuisine) and Ingredient-Season relations.
-        """
-        approx_tags = [cuisine.lower()]
-        recipes = self.db.search_recipes(
-            user_id=user_id,
-            max_minutes=max_minutes,
-            required_dietary_profiles=required_dietary_profiles,
-            excluded_tags=excluded_tags,
-            include_ingredients=None,  # let orchestrator pass seasonal ingredients if extracted
-            include_all_ingredients=False,
-            use_pantry_ingredients=False,
-            use_expiring_from_pantry=False,
-            require_any_ingredient_match=False,
-            course=None,
-            limit=limit,
-        )
-        # Filter client-side by tag hit if tags exist in results
-        filtered = [r for r in recipes if any(t == cuisine.lower() for t in (r.get("tags") or []))]
-        return ToolResult(
-            type="recipes_list",
-            message=f"Wyniki dla kuchni={cuisine}, sezon={season} (MVP przybliżenie).",
-            data={"recipes": filtered, "cuisine": cuisine, "season": season, "note": "MVP approximation; add DB cypher for cuisine/season for full accuracy."},
-        )
+

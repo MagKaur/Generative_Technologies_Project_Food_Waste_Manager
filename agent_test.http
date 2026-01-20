@@ -1,4 +1,122 @@
+@base = http://127.0.0.1:8000
+@user = John Doe
 POST http://127.0.0.1:8000/agent/message
 Content-Type: application/x-www-form-urlencoded
 
 user_id=test&message=Co%20mog%C4%99%20ugotowa%C4%87%20w%2030%20minut%3F
+
+
+
+### 0) Healthcheck
+GET {{base}}/health
+
+### 1) Utwórz użytkownika (jeśli masz tool create_user)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Utwórz mi konto użytkownika o uuid "{{user}}".
+
+### 2) Dodaj produkty do spiżarni (tekstowo w chacie)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Dodaj do mojej spiżarni: pomidory 3 szt (data 2026-01-16), cukinia 2 szt (data 2026-01-15), makaron 500 g (data brak), jajka 10 szt (data 2026-01-20).
+
+### Pokaż moją spiżarnię
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Poka%C5%BC%20spi%C5%BCarni%C4%99
+
+### 4) Dodaj przepis (tekst w chacie)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Dodaj przepis: "Makaron z cukinią i pomidorami". Składniki: makaron 200g, cukinia 1 szt, pomidory 2 szt, czosnek 1 ząbek, oliwa. Czas: 20 minut. Kroki: ugotuj makaron, podsmaż cukinię i czosnek, dodaj pomidory, połącz.
+
+### 5) Dodaj przepis (link URL w chacie) — podmień na prawdziwy url
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Dodaj przepis z linku.&url=https://example.com/recipe
+
+### 6) Dodaj przepis (PDF) — podmień ścieżkę na swój plik
+POST {{base}}/agent/message
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="user_id"
+
+{{user}}
+--boundary
+Content-Disposition: form-data; name="message"
+
+Dodaj przepis z PDF.
+--boundary
+Content-Disposition: form-data; name="pdf_file"; filename="recipe.pdf"
+Content-Type: application/pdf
+
+< ./recipe.pdf
+--boundary--
+
+### 7) Dodaj przepis (obraz / screen) — podmień ścieżkę na swój plik
+POST {{base}}/agent/message
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="user_id"
+
+{{user}}
+--boundary
+Content-Disposition: form-data; name="message"
+
+Dodaj przepis ze zdjęcia.
+--boundary
+Content-Disposition: form-data; name="image_file"; filename="recipe.png"
+Content-Type: image/png
+
+< ./recipe.png
+--boundary--
+
+### 8) Co mogę ugotować z produktów, które mam? (z pantry)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Co mogę ugotować z produktów, które mam w domu? Pokaż 10 propozycji.
+
+### 9) Co mogę ugotować z produktów, które podaję w chacie? (lista z czatu)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Co mogę ugotować z: pomidory, cukinia, makaron? Pokaż 10 propozycji.
+
+### 10) Co ugotować z produktów, którym kończy się data przydatności? (expiring)
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Co mogę ugotować z produktów, którym kończy się data przydatności w ciągu 3 dni? Pokaż propozycje.
+
+### 11) Pokaż przepisy w 30 minut
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Pokaż przepisy, które można ugotować w 30 minut. Limit 20.
+
+### 12) Lista zakupów brakujących produktów do przepisu (wymaga recipe_uuid)
+# Najpierw uruchom test 8/9, skopiuj recipe_uuid z odpowiedzi i wklej niżej.
+POST {{base}}/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o uuid: WSTAW_TU_RECIPE_UUID
+
+### 13) Jakie przepisy mogę ugotować z sezonowymi warzywami (zimowymi)
+POST http://127.0.0.1:8000/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe warzywa (zimowe)?
+
+### Jakie przepisy mogę ugotować z sezonowymi produktami (zimowymi)
+POST http://127.0.0.1:8000/agent/message
+Content-Type: application/x-www-form-urlencoded
+
+user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe produkty (zimowe)?

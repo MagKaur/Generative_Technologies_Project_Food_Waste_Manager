@@ -189,7 +189,7 @@ class AgentService:
                 ToolName.PLAN_COURSES.value,
                 ToolName.MISSING_INGREDIENTS.value,
                 ToolName.RAG_SEARCH.value,
-                ToolName.SEASONAL_CUISINE.value,
+                ToolName.SEASONAL_RECIPES.value,
             ):
                 return self._execute_search_like(tool, args, req)
 
@@ -271,22 +271,37 @@ class AgentService:
             k = int(args.get("k") or 5)
             return self._tools.rag_search(query_text=query_text, k=k)
 
+        if tool == ToolName.RAG_SEARCH_RECIPES.value:
+            query_text = args.get("query_text") or args.get("query") or req.message
+
+            k_chunks = int(args.get("k_chunks") or 30)
+            limit_recipes = int(args.get("limit_recipes") or 5)
+            chunks_per_recipe = int(args.get("chunks_per_recipe") or 3)
+
+            max_minutes = args.get("max_minutes")
+            max_minutes = int(max_minutes) if max_minutes is not None else None
+
+            return self._tools.rag_search_recipes(
+                query_text=query_text,
+                k_chunks=k_chunks,
+                limit_recipes=limit_recipes,
+                chunks_per_recipe=chunks_per_recipe,
+                max_minutes=max_minutes,
+            )
+
         if tool == ToolName.PLAN_COURSES.value:
             return self._tools.plan_courses_for_guests(**args)
 
-        if tool == ToolName.SEASONAL_CUISINE.value:
-            cuisine = args.get("cuisine")
-            season = args.get("season")
-            if not cuisine or not season:
-                return ToolResult(
-                    type="error",
-                    message="Brakuje cuisine/season.",
-                    data={"tool": tool, "args": args},
-                )
-            return self._tools.seasonal_cuisine_query(**args)
+        if tool == ToolName.SEASONAL_RECIPES.value:
+            season = args.get("season")  # może być None
+            max_minutes = args.get("max_minutes")
+            max_minutes = int(max_minutes) if max_minutes is not None else None
+            limit = int(args.get("limit") or 20)
 
-        return ToolResult(
-            type="error",
-            message=f"Nieznany wariant search-like: {tool}",
-            data={"tool": tool, "args": args},
-        )
+            return self._tools.seasonal_recipes(
+                season=season,
+                max_minutes=max_minutes,
+                required_dietary_profiles=args.get("required_dietary_profiles"),
+                excluded_tags=args.get("excluded_tags"),
+                limit=limit,
+            )
