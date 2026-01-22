@@ -1,4 +1,4 @@
-@base = http://localhost:8080
+@base = http://localhost:8000
 @user = 55bed824-3a3d-48ac-98f2-ec2e284b1e24
 
 POST {{base}}/agent/message
@@ -83,19 +83,19 @@ Content-Type: image/png
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Co mogę ugotować z produktów, które mam w domu? Pokaż 10 propozycji.
+user_id={{user}}&message=Co mogę ugotować z produktów, które mam w domu?
 
 ### 9) Co mogę ugotować z produktów, które podaję w chacie? (lista z czatu)
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Co mogę ugotować z: pomidory, cukinia, makaron? Pokaż 10 propozycji.
+user_id={{user}}&message=Co mogę ugotować z: pomidor, cukinia, makaron. Pokaż maksymalnie 5 pozycji.
 
 ### 10) Co ugotować z produktów, którym kończy się data przydatności? (expiring)
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Co mogę ugotować z produktów, którym kończy się data przydatności w ciągu 3 dni? Pokaż propozycje.
+user_id={{user}}&message=Co mogę ugotować z produktów, którym kończy się data przydatności w ciągu 30 dni? Pokaż propozycje.
 
 ### 11) Pokaż przepisy w 30 minut
 POST {{base}}/agent/message
@@ -108,7 +108,7 @@ user_id={{user}}&message=Pokaż przepisy, które można ugotować w 30 minut. Li
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o uuid: f6d8ee3f-a89f-450f-8f8f-fe431d9c8d7f
+user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o nazwie Creole Green Beans
 
 ### 13) Jakie przepisy mogę ugotować z sezonowymi warzywami (zimowymi)
 POST http://127.0.0.1:8000/agent/message

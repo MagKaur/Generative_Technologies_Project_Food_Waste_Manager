@@ -487,8 +487,7 @@ class DatabaseService:
             WITH $include_ingredients AS include_names
 
             // 1) pantry qty>0 (opcjonalnie) — subquery ZAWSZE zwraca 1 wiersz
-            CALL {
-              WITH include_names
+            CALL (include_names) {
               OPTIONAL MATCH (u:User {uuid: $user_id})-[:OWNS]->(p:PantryItem)-[:IS_OF_INGREDIENT]->(ing:Ingredient)
               WHERE $use_pantry_ingredients = true
                 AND $user_id IS NOT NULL
@@ -497,8 +496,7 @@ class DatabaseService:
             }
 
             // 2) expiring soon (opcjonalnie) — subquery ZAWSZE zwraca 1 wiersz
-            CALL {
-              WITH include_names
+            CALL (include_names) {
               OPTIONAL MATCH (u:User {uuid: $user_id})-[:OWNS]->(p:PantryItem)-[:IS_OF_INGREDIENT]->(ing:Ingredient)
               WHERE $use_expiring_from_pantry = true
                 AND $user_id IS NOT NULL
@@ -576,6 +574,100 @@ class DatabaseService:
               title ASC
             LIMIT $limit
         """
+        # query = """
+        #     // 0) include names z czatu
+        #     WITH $include_ingredients AS include_names
+        #
+        #     // 1) pantry qty>0 (opcjonalnie) — subquery ZAWSZE zwraca 1 wiersz
+        #     CALL {
+        #       WITH include_names
+        #       OPTIONAL MATCH (u:User {uuid: $user_id})-[:OWNS]->(p:PantryItem)-[:IS_OF_INGREDIENT]->(ing:Ingredient)
+        #       WHERE $use_pantry_ingredients = true
+        #         AND $user_id IS NOT NULL
+        #         AND p.quantity IS NOT NULL AND p.quantity > 0
+        #       RETURN coalesce(collect(DISTINCT toLower(ing.name)), []) AS pantry_names
+        #     }
+        #
+        #     // 2) expiring soon (opcjonalnie) — subquery ZAWSZE zwraca 1 wiersz
+        #     CALL {
+        #       WITH include_names
+        #       OPTIONAL MATCH (u:User {uuid: $user_id})-[:OWNS]->(p:PantryItem)-[:IS_OF_INGREDIENT]->(ing:Ingredient)
+        #       WHERE $use_expiring_from_pantry = true
+        #         AND $user_id IS NOT NULL
+        #         AND p.expiration_date IS NOT NULL
+        #         AND p.expiration_date >= $today
+        #         AND p.expiration_date <= $end_date
+        #         AND ($expiring_only_if_qty_gt0 = false OR (p.quantity IS NOT NULL AND p.quantity > 0))
+        #       RETURN coalesce(collect(DISTINCT toLower(ing.name)), []) AS expiring_names
+        #     }
+        #
+        #     WITH
+        #       include_names,
+        #       coalesce(pantry_names, []) AS pantry_names,
+        #       coalesce(expiring_names, []) AS expiring_names
+        #
+        #     // 3) zbuduj target_names = include + pantry + expiring (unikalne, bez APOC)
+        #     WITH include_names + pantry_names + expiring_names AS all_names
+        #     WITH [x IN all_names WHERE x IS NOT NULL AND x <> ""] AS all_names
+        #     WITH reduce(s = [], x IN all_names | CASE WHEN x IN s THEN s ELSE s + x END) AS target_names
+        #
+        #     // 4) recipe i filtry "niezależne od składników"
+        #     MATCH (r:Recipe)
+        #     WHERE ($max_minutes IS NULL OR r.total_time_minutes IS NULL OR r.total_time_minutes <= $max_minutes)
+        #
+        #     // wymagane profile
+        #     AND (size($required_profiles) = 0 OR all(p IN $required_profiles WHERE EXISTS {
+        #       MATCH (r)-[:SUITABLE_FOR]->(dp:DietaryProfile)
+        #       WHERE toLower(dp.name) = p
+        #     }))
+        #
+        #     // excluded tags
+        #     AND (size($excluded_tags) = 0 OR NOT EXISTS {
+        #       MATCH (r)-[:HAS_TAG]->(t:Tag)
+        #       WHERE toLower(t.name) IN $excluded_tags
+        #     })
+        #
+        #     // 5) kurs po tagach (opcjonalnie)
+        #     OPTIONAL MATCH (r)-[:HAS_TAG]->(tag:Tag)
+        #     WITH r, target_names, collect(DISTINCT toLower(tag.name)) AS tags
+        #     WHERE ($course_tags = [] OR any(t IN tags WHERE t IN $course_tags))
+        #
+        #     // 6) match składników
+        #     OPTIONAL MATCH (r)-[:HAS_INGREDIENT]->(ri:Ingredient)
+        #     WITH r, tags, target_names, collect(DISTINCT toLower(ri.name)) AS recipe_ings
+        #     WITH
+        #       r, tags, target_names, recipe_ings,
+        #       CASE
+        #         WHEN size(target_names) = 0 THEN []
+        #         ELSE [x IN recipe_ings WHERE x IN target_names]
+        #       END AS matched_list,
+        #       CASE
+        #         WHEN size(target_names) = 0 THEN 0
+        #         ELSE size([x IN recipe_ings WHERE x IN target_names])
+        #       END AS matched_count,
+        #       CASE
+        #         WHEN size(target_names) = 0 THEN 0
+        #         ELSE size([x IN target_names WHERE NOT x IN recipe_ings])
+        #       END AS missing_count
+        #
+        #     WHERE
+        #       ($require_any_ingredient_match = false OR matched_count > 0)
+        #       AND ($include_all_ingredients = false OR missing_count = 0)
+        #
+        #     RETURN
+        #       r.uuid AS recipe_uuid,
+        #       r.title AS title,
+        #       r.total_time_minutes AS total_time_minutes,
+        #       matched_list AS matched_ingredients,
+        #       tags AS tags,
+        #       matched_count AS matched_count,
+        #       missing_count AS missing_count
+        #     ORDER BY
+        #       matched_count DESC,
+        #       coalesce(r.total_time_minutes, 999999) ASC,
+        #       title ASC
+        #     LIMIT $limit
+        # """
 
         params = {
             "user_id": user_id,
