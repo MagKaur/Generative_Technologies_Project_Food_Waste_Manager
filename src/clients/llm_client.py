@@ -223,39 +223,40 @@ class LLMClient:
         Returns list of MatchItem objects (matched_name for Ingredient by name).
         """
         new_items_json = json.dumps(new_items, ensure_ascii=False)
-        system_content = """
+        # new_items_list = new_items_json
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
         You are an ingredient matching expert. Given a list of existing ingredients in the database and new items to add,
-        for each new item, find the best matching existing ingredient by name (considering variations, synonyms, or inflections like "tomato" vs "tomatoes" or "pomidor" vs "pomidory").
+        for each new item, find the best matching existing ingredient by name.
 
         Rules:
         - Match based on semantic similarity; if no exact or close match, return null for matched_name.
         - Output ONLY the JSON object matching the schema below. No additional text.
 
-        Existing ingredients: {}
-        New items: {}
+        Existing ingredients: {existing_ingredients}
+        New items: {new_items}
 
         JSON Schema:
         {{
           "matches": [
-            {{{{
+            {{
               "input_index": "integer",
               "matched_name": "string|null",
-              "confidence": "float"  // 0.0 to 1.0
+              "confidence": "float"
             }}
           ]
         }}
-        """.format(', '.join(existing_names), new_items_json)
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_content),
-            ("human", "Perform the matching based on the provided data."),
+        """),
+            ("human", "Perform the matching."),
         ])
 
         structured_llm = self._client.with_structured_output(MatchSchema)
         pipeline = prompt | structured_llm
 
-
-        parsed: MatchSchema = pipeline.invoke({})
+        parsed: MatchSchema = pipeline.invoke({
+            "existing_ingredients": ", ".join(existing_names),
+            "new_items": new_items_json
+        })
         return parsed.matches
 
 
