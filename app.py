@@ -8,7 +8,7 @@ import requests
 import os
 
 DEFAULT_USER_ID = "55bed824-3a3d-48ac-98f2-ec2e284b1e24"
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
 
 st.set_page_config(page_title="Chat Assistant", layout="centered")
 INGREDIENTS_FILE = "ingredients.json"
@@ -20,8 +20,10 @@ if "pdf_uploader_key" not in st.session_state:
 if "image_uploader_key" not in st.session_state:
     st.session_state.image_uploader_key = 0
 
+
 def sanitize_message(text: str) -> str:
     return text.replace("{", "{{").replace("}", "}}")
+
 
 def render_recipes(recipes):
     for r in recipes:
@@ -37,6 +39,7 @@ def render_recipes(recipes):
             if matched:
                 st.write("Matched ingredients:")
                 st.write(", ".join(matched))
+
 
 def render_backend_response(response_type, message, data):
     if response_type == "answer":
@@ -58,14 +61,56 @@ def render_backend_response(response_type, message, data):
         st.success(message)
 
     elif response_type == "pantry_list":
-        st.info(message)
-        for item in data.get("pantry", []):
-            st.write(f"- {item['name']} ({item['quantity']} {item['unit']})")
+        st.subheader(message or "Twoja spiżarnia")
+        pantry = data.get("pantry", [])
+        if not pantry:
+            st.info("Brak składników w spiżarni.")
+        else:
+            table_data = []
+            for item in pantry:
+                # exp = item.get("expiration_date", "—")
+                table_data.append({
+                    "Produkt": item.get("ingredient_name", "—"),
+                    "Ilość": f"{item.get('quantity', 0)} {item.get('unit', '')}",
+                })
+            import pandas as pd
+            df = pd.DataFrame(table_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
     elif response_type == "missing_ingredients":
-        st.subheader(message)
-        for ing in data.get("ingredients", []):
-            st.write(f"- {ing}")
+        st.subheader(message)  # np. "Lista zakupów do: Cranberry Punch"
+
+        missing = data.get("missing_ingredients", [])
+        recipe_title = data.get("title", "przepisu")
+        total_time = data.get("total_time_minutes", None)
+
+        if total_time:
+            st.caption(f"Czas przygotowania: ≈ {total_time} minut")
+
+        if not missing:
+            st.success("Masz już wszystkie składniki! Możesz zacząć gotować 🎉")
+        else:
+            st.markdown(f"**Brakuje {len(missing)} składników do przygotowania '{recipe_title}':**")
+
+            # Najładniejsza wersja – kolumny + ikony
+            cols = st.columns([4, 2, 1])  # nazwa | ilość | jednostka
+            cols[0].markdown("**Składnik**")
+            cols[1].markdown("**Ilość**")
+            cols[2].markdown("**Jednostka**")
+
+            for ing in missing:
+                name = ing.get("name", "—")
+                amount = ing.get("amount", "?")
+                unit = ing.get("unit", "").strip() or "szt."
+
+                # ładne formatowanie ilości (np. 1.0 → 1)
+                amount_str = f"{amount:g}" if amount == int(amount) else f"{amount:.1f}"
+
+                with st.container():
+                    cols = st.columns([4, 2, 1])
+                    cols[0].write(name)
+                    cols[1].write(amount_str)
+                    cols[2].write(unit)
 
     elif response_type == "recipes_list":
         render_recipes(data.get("recipes", []))
@@ -99,11 +144,13 @@ def render_backend_response(response_type, message, data):
     else:
         st.markdown(message or "Action completed.")
 
+
 def load_ingredients():
     if os.path.exists(INGREDIENTS_FILE):
         with open(INGREDIENTS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
+
 
 def save_ingredients(data):
     with open(INGREDIENTS_FILE, "w", encoding="utf-8") as f:
@@ -116,32 +163,16 @@ def load_chats():
             return json.load(f)
     return {}
 
+
 def save_chats(chats):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(chats, f, indent=2, ensure_ascii=False)
+
 
 def generate_chat_name(text):
     t = text.strip().split("\n")[0][:40]
     return f"{t}..." if len(t) > 40 else t
 
-# def ensure_user():
-#     if "user_id" not in st.session_state or st.session_state.user_id is None:
-#         try:
-#             r = requests.post(
-#                 f"{BACKEND_URL}/agent/message",
-#                 data={"message": "Create user"},
-#                 timeout=30
-#             )
-#             r.raise_for_status()
-#             resp = r.json()
-
-#             if resp.get("type") == "user_created":
-#                 st.session_state.user_id = resp["data"]["user_id"]
-#             else:
-#                 st.error("Failed to create user")
-
-#         except Exception as e:
-#             st.error(f"User creation failed: {e}")
 
 def ensure_user():
     st.session_state.user_id = DEFAULT_USER_ID
@@ -157,12 +188,14 @@ def ensure_chat_exists():
         }
         st.session_state.current_chat_id = new_id
 
+
 def add_system_message(text: str):
     chat = st.session_state.chats[st.session_state.current_chat_id]
     chat["messages"].append({
         "role": "assistant",
         "content": text
     })
+
 
 if "initialized" not in st.session_state:
     st.session_state.initialized = True
@@ -225,7 +258,7 @@ elif page == "Chat":
             type=["pdf"],
             key=f"pdf_uploader_{st.session_state.pdf_uploader_key}"
         )
- 
+
     with col_img:
         image_file = st.file_uploader(
             "➕ Upload recipe from image",
@@ -255,7 +288,7 @@ elif page == "Chat":
                         "user_id": st.session_state.user_id,
                         "message": f"Add recipe from PDF: {pdf_path}"
                     },
-                    timeout=90
+                    timeout=120
                 )
                 r.raise_for_status()
                 resp = r.json()
@@ -313,7 +346,7 @@ elif page == "Chat":
 
                 st.success(success_msg)
                 st.session_state.processed_files.add(image_file.name)
-                st.session_state.image_uploader_key += 1   
+                st.session_state.image_uploader_key += 1
 
             except Exception as e:
                 st.error(f"Image upload failed: {e}")
@@ -325,7 +358,7 @@ elif page == "Chat":
                 st.markdown(msg["content"])
 
     prompt = st.chat_input("Type your message")
-    
+
     if prompt:
         ensure_chat_exists()
 
@@ -350,7 +383,7 @@ elif page == "Chat":
                     "message": safe_prompt,
                     "user_id": st.session_state.user_id
                 },
-                timeout=30
+                timeout=120
             )
 
             r.raise_for_status()
