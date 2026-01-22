@@ -95,7 +95,7 @@ user_id={{user}}&message=Co mogę ugotować z: pomidor, cukinia, makaron. Pokaż
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Co mogę ugotować z produktów, którym kończy się data przydatności w ciągu 3 dni? Pokaż propozycje.
+user_id={{user}}&message=Co mogę ugotować z produktów, którym kończy się data przydatności w ciągu 30 dni? Pokaż propozycje.
 
 ### 11) Pokaż przepisy w 30 minut
 POST {{base}}/agent/message
