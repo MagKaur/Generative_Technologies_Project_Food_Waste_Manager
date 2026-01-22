@@ -214,7 +214,19 @@ class AgentTools:
         return self.search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
 
     def search_recipes_expiring(self, user_id: str, days: int = 3, **kwargs) -> ToolResult:
-        return self.search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
+        # Safety net: in case expiring_days was still passed inside kwargs
+        kwargs = dict(kwargs)
+        kwargs.pop("expiring_days", None)
+        kwargs.pop("days", None)
+
+        return self.search_recipes(
+            user_id=user_id,
+            use_expiring_from_pantry=True,
+            expiring_days=days,
+            **kwargs
+        )
+    # def search_recipes_expiring(self, user_id: str, days: int = 3, **kwargs) -> ToolResult:
+    #     return self.search_recipes(user_id=user_id, use_expiring_from_pantry=True, expiring_days=days, **kwargs)
 
     def search_recipes_under_time(self, minutes: int, limit: int = 20) -> ToolResult:
         recipes = self.db.find_recipes_under_time(minutes=minutes, limit=limit)

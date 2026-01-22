@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from unittest.mock import call
 
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
@@ -225,7 +226,7 @@ class AgentService:
                     data={"tool": tool, "args": args},
                 )
             args.pop("include_ingredients", None)  # from_pantry ignores include list
-            return self._tools.search_recipes_from_pantry(user_id=user_id, **args)
+            return self._tools.search_recipes_from_pantry(**args)
 
         if tool == ToolName.SEARCH_FROM_LIST.value:
             ingredients = args.get("ingredients") or args.get("include_ingredients") or []
@@ -239,10 +240,33 @@ class AgentService:
                     message="Brakuje user_id (nie wiem czyje produkty sprawdzić).",
                     data={"tool": tool, "args": args},
                 )
-            days = int(args.get("days") or args.get("expiring_days") or 3)
-            # clean args
+
+            days_raw = args.get("days", None)
+            exp_raw = args.get("expiring_days", None)
+
+            days = int(days_raw or exp_raw or 3)
+            logger.warning("EXPIRING args BEFORE CLEAN: %s", call.args)
+            logger.warning("EXPIRING args AFTER CLEAN: %s", args)
+            logger.warning("EXPIRING days=%s user_id=%s", days, user_id)
+            # We accept BOTH keys from LLM: "days" and "expiring_days"
+            # 🔥 CRITICAL: delete BOTH keys BEFORE **args
+            args = dict(args)  # make a shallow copy so we're sure we mutate the one we pass
             args.pop("days", None)
-            return self._tools.search_recipes_expiring(user_id=user_id, days=days, **args)
+            args.pop("expiring_days", None)
+
+            return self._tools.search_recipes_expiring(days=days, **args)
+        # if tool == ToolName.SEARCH_EXPIRING.value:
+        #     user_id = args.get("user_id") or req.user_id
+        #     if not user_id:
+        #         return ToolResult(
+        #             type="error",
+        #             message="Brakuje user_id (nie wiem czyje produkty sprawdzić).",
+        #             data={"tool": tool, "args": args},
+        #         )
+        #     days = int(args.get("days") or args.get("expiring_days") or 3)
+        #     # clean args
+        #     # args.pop("days", None)
+        #     return self._tools.search_recipes_expiring(days=days, **args)
 
         if tool == ToolName.SEARCH_UNDER_TIME.value:
             minutes = int(args.get("minutes") or args.get("max_minutes") or 30)

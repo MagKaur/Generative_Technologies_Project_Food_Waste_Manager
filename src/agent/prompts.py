@@ -41,6 +41,28 @@ def build_tool_selection_prompt(tool_names: List[str]) -> ChatPromptTemplate:
               - url: a URL
               If attachment bytes are present, prefer ingest tools.
             
+                TASK
+                Translate the provided ingredient names into English and normalize them.
+                
+                RULES
+                - Translate ONLY the ingredient names.
+                - Do NOT add, remove, or infer ingredients.
+                - Do NOT add quantities, units, or descriptions.
+                - Do NOT explain translations.
+                - Output MUST be a JSON array of strings.
+                - Preserve the original order.
+                - Use common, culinary English names (e.g. "ziemniaki" → "potato", not "solanum tuberosum").
+                - If an ingredient is already in English, keep it unchanged.
+                - If a term is ambiguous, choose the most common cooking-related meaning.
+                - Do NOT hallucinate ingredients.
+                - If the ingredient is provided in plural form, translate it into SINGULAR form in English.
+                  Examples:
+                  - "ziemniaki" → "potato"
+                  - "pomidory" → "tomato"
+                  - "grzyby" → "mushroom"
+                  - "jajka" → "egg"
+                
+            
             WHAT USERS TYPICALLY ASK
             - "Co mogę ugotować ...?" -> choose search tools
             - "Dodaj do spiżarni ..." -> add_pantry_items
