@@ -7,6 +7,7 @@ import time
 import requests
 import os
 
+DEFAULT_USER_ID = "55bed824-3a3d-48ac-98f2-ec2e284b1e24"
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="Chat Assistant", layout="centered")
@@ -19,6 +20,8 @@ if "pdf_uploader_key" not in st.session_state:
 if "image_uploader_key" not in st.session_state:
     st.session_state.image_uploader_key = 0
 
+def sanitize_message(text: str) -> str:
+    return text.replace("{", "{{").replace("}", "}}")
 
 def render_recipes(recipes):
     for r in recipes:
@@ -121,24 +124,28 @@ def generate_chat_name(text):
     t = text.strip().split("\n")[0][:40]
     return f"{t}..." if len(t) > 40 else t
 
+# def ensure_user():
+#     if "user_id" not in st.session_state or st.session_state.user_id is None:
+#         try:
+#             r = requests.post(
+#                 f"{BACKEND_URL}/agent/message",
+#                 data={"message": "Create user"},
+#                 timeout=30
+#             )
+#             r.raise_for_status()
+#             resp = r.json()
+
+#             if resp.get("type") == "user_created":
+#                 st.session_state.user_id = resp["data"]["user_id"]
+#             else:
+#                 st.error("Failed to create user")
+
+#         except Exception as e:
+#             st.error(f"User creation failed: {e}")
+
 def ensure_user():
-    if "user_id" not in st.session_state or st.session_state.user_id is None:
-        try:
-            r = requests.post(
-                f"{BACKEND_URL}/agent/message",
-                data={"message": "Create user"},
-                timeout=30
-            )
-            r.raise_for_status()
-            resp = r.json()
+    st.session_state.user_id = DEFAULT_USER_ID
 
-            if resp.get("type") == "user_created":
-                st.session_state.user_id = resp["data"]["user_id"]
-            else:
-                st.error("Failed to create user")
-
-        except Exception as e:
-            st.error(f"User creation failed: {e}")
 
 def ensure_chat_exists():
     if st.session_state.current_chat_id is None:
@@ -324,6 +331,8 @@ elif page == "Chat":
 
         chat = st.session_state.chats[st.session_state.current_chat_id]
 
+        safe_prompt = sanitize_message(prompt)
+
         response_type = None
         message = ""
         data = {}
@@ -334,8 +343,6 @@ elif page == "Chat":
 
         try:
             ensure_user()
-
-            safe_prompt = prompt.replace("{", "(").replace("}", ")")
 
             r = requests.post(
                 f"{BACKEND_URL}/agent/message",
