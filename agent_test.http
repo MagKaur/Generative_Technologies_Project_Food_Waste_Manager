@@ -1,6 +1,7 @@
-@base = http://127.0.0.1:8000
-@user = John Doe
-POST http://127.0.0.1:8000/agent/message
+@base = http://localhost:8080
+@user = 55bed824-3a3d-48ac-98f2-ec2e284b1e24
+
+POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
 user_id=test&message=Co%20mog%C4%99%20ugotowa%C4%87%20w%2030%20minut%3F
@@ -38,7 +39,7 @@ user_id={{user}}&message=Dodaj przepis: "Makaron z cukinią i pomidorami". Skła
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Dodaj przepis z linku.&url=https://example.com/recipe
+user_id={{user}}&message=Dodaj przepis z linku.&url=https://www.kwestiasmaku.com/przepis/bigos-z-kiszonej-kapusty
 
 ### 6) Dodaj przepis (PDF) — podmień ścieżkę na swój plik
 POST {{base}}/agent/message
@@ -53,10 +54,10 @@ Content-Disposition: form-data; name="message"
 
 Dodaj przepis z PDF.
 --boundary
-Content-Disposition: form-data; name="pdf_file"; filename="recipe.pdf"
+Content-Disposition: form-data; name="pdf_file"; filename="test.pdf"
 Content-Type: application/pdf
 
-< ./recipe.pdf
+< ./src/data/test.pdf
 --boundary--
 
 ### 7) Dodaj przepis (obraz / screen) — podmień ścieżkę na swój plik
@@ -107,7 +108,7 @@ user_id={{user}}&message=Pokaż przepisy, które można ugotować w 30 minut. Li
 POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o uuid: WSTAW_TU_RECIPE_UUID
+user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o uuid: f6d8ee3f-a89f-450f-8f8f-fe431d9c8d7f
 
 ### 13) Jakie przepisy mogę ugotować z sezonowymi warzywami (zimowymi)
 POST http://127.0.0.1:8000/agent/message
