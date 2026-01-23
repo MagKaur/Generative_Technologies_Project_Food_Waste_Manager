@@ -208,7 +208,7 @@ class AgentTools:
         )
 
     def search_recipes_from_pantry(self, user_id: str, **kwargs) -> ToolResult:
-        return self.search_recipes(user_id=user_id, use_pantry_ingredients=True, include_ingredients=None, **kwargs)
+        return self.search_recipes(user_id=user_id, include_ingredients=None, **kwargs)
 
     def search_recipes_from_list(self, ingredients: List[str], **kwargs) -> ToolResult:
         return self.search_recipes(include_ingredients=ingredients, use_pantry_ingredients=False, **kwargs)
