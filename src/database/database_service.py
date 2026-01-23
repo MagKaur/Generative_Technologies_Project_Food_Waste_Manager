@@ -927,7 +927,7 @@ class DatabaseService:
     #traditional RAG (chunks only - retrival)
     def vector_search_chunks(self, query_embedding: List[float], k: int = 8) -> List[Dict[str, Any]]:
         cypher = """
-        CALL db.index.vector.queryNodes('chunk_embedding', $k, $embedding)
+        CALL db.index.vector.queryNodes('vector_index_Chunk_embedding', $k, $embedding)
         YIELD node, score
 
         OPTIONAL MATCH (d:Document)-[:HAS_CHUNK]->(node)

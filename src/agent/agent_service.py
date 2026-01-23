@@ -13,7 +13,8 @@ from src.clients.llm_client import LLMClient
 from src.agent.prompts import build_tool_selection_prompt
 from src.agent.tools import AgentTools, ToolName, ToolResult
 
-
+import time
+import uuid
 logger = logging.getLogger(__name__)
 
 
@@ -62,17 +63,81 @@ class AgentService:
         - message: short text to display
         - data: payload
         """
+        request_id = str(uuid.uuid4())
+        t_start = time.perf_counter()
+
         # 0) If attachment bytes exist, hard-route ingest (avoid LLM confusion)
         if req.pdf_bytes is not None:
-            return self._tools.ingest_recipe_pdf(pdf_bytes=req.pdf_bytes)
+            t_exec_start = time.perf_counter()
+            result = self._tools.ingest_recipe_pdf(pdf_bytes=req.pdf_bytes)
+            t_exec_end = time.perf_counter()
+
+            result.data = dict(result.data or {})
+            result.data["metrics"] = {
+                "request_id": request_id,
+                "tool": "ingest_recipe_pdf",
+                "select_ms": 0.0,
+                "exec_ms": round((t_exec_end - t_exec_start) * 1000, 2),
+                "total_ms": round((time.perf_counter() - t_start) * 1000, 2),
+            }
+            return result
+
         if req.image_bytes is not None:
-            return self._tools.ingest_recipe_image(image_bytes=req.image_bytes)
+            t_exec_start = time.perf_counter()
+            result = self._tools.ingest_recipe_image(image_bytes=req.image_bytes)
+            t_exec_end = time.perf_counter()
+
+            result.data = dict(result.data or {})
+            result.data["metrics"] = {
+                "request_id": request_id,
+                "tool": "ingest_recipe_image",
+                "select_ms": 0.0,
+                "exec_ms": round((t_exec_end - t_exec_start) * 1000, 2),
+                "total_ms": round((time.perf_counter() - t_start) * 1000, 2),
+            }
+            return result
 
         # 1) Ask LLM for tool selection (structured JSON)
+        t_select_start = time.perf_counter()
         tool_call = self._select_tool(req)
+        t_select_end = time.perf_counter()
 
         # 2) Execute tool
-        return self._execute_tool(tool_call, req)
+        t_exec_start = time.perf_counter()
+        result = self._execute_tool(tool_call, req)
+        t_exec_end = time.perf_counter()
+
+        # 3) Attach metrics (non-breaking)
+        result.data = dict(result.data or {})
+        result.data["metrics"] = {
+            "request_id": request_id,
+            "tool": tool_call.tool,
+            "select_ms": round((t_select_end - t_select_start) * 1000, 2),
+            "exec_ms": round((t_exec_end - t_exec_start) * 1000, 2),
+            "total_ms": round((time.perf_counter() - t_start) * 1000, 2),
+        }
+
+        return result
+    # def handle_message(self, req: AgentMessage) -> ToolResult:
+    #     """
+    #     Main entry point called by API.
+    #
+    #     Returns ToolResult with:
+    #     - type: frontend rendering hint (e.g. recipes_list)
+    #     - message: short text to display
+    #     - data: payload
+    #     """
+    #     # 0) If attachment bytes exist, hard-route ingest (avoid LLM confusion)
+    #     if req.pdf_bytes is not None:
+    #         return self._tools.ingest_recipe_pdf(pdf_bytes=req.pdf_bytes)
+    #     if req.image_bytes is not None:
+    #         return self._tools.ingest_recipe_image(image_bytes=req.image_bytes)
+    #
+    #     # 1) Ask LLM for tool selection (structured JSON)
+    #     tool_call = self._select_tool(req)
+    #
+    #     # 2) Execute tool
+    #     return self._execute_tool(tool_call, req)
 
     def _select_tool(self, req: AgentMessage) -> ToolCall:
         # Simple URL hint: if API already extracted url, pass it; else LLM can detect from message
@@ -190,6 +255,7 @@ class AgentService:
                 ToolName.PLAN_COURSES.value,
                 ToolName.MISSING_INGREDIENTS.value,
                 ToolName.RAG_SEARCH.value,
+                ToolName.RAG_SEARCH_RECIPES.value,
                 ToolName.SEASONAL_RECIPES.value,
             ):
                 return self._execute_search_like(tool, args, req)

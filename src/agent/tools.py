@@ -204,8 +204,16 @@ class AgentTools:
         return ToolResult(
             type="recipes_list",
             message=f"Znalazłam {len(recipes)} przepisów.",
-            data={"recipes": recipes},
+            data={
+                "mode": "graph_search",
+                "recipes": recipes
+            },
         )
+        # return ToolResult(
+        #     type="recipes_list",
+        #     message=f"Znalazłam {len(recipes)} przepisów.",
+        #     data={"recipes": recipes},
+        # )
 
     def search_recipes_from_pantry(self, user_id: str, **kwargs) -> ToolResult:
         return self.search_recipes(user_id=user_id, include_ingredients=None, **kwargs)

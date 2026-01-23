@@ -14,3 +14,4 @@ easyocr
 fastapi
 python-multipart
 pdfplumber
+deepeval
