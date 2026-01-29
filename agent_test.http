@@ -1,4 +1,4 @@
-@base = http://localhost:8000
+@base = http://localhost:8080
 @user = 55bed824-3a3d-48ac-98f2-ec2e284b1e24
 
 POST {{base}}/agent/message
@@ -111,19 +111,19 @@ Content-Type: application/x-www-form-urlencoded
 user_id={{user}}&message=Zrób listę zakupów brakujących produktów do przepisu o nazwie Creole Green Beans
 
 ### 13) Jakie przepisy mogę ugotować z sezonowymi warzywami (zimowymi)
-POST http://127.0.0.1:8000/agent/message
+POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
 user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe warzywa (zimowe)?
 
 ### Jakie przepisy mogę ugotować z sezonowymi produktami (zimowymi)
-POST http://127.0.0.1:8000/agent/message
+POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
 user_id=John Doe&message=Jakie dania można ugotować, w których można wykorzystać sezonowe produkty (zimowe)?
 
 ### GraphRAG — celiakia + sezon letni (+ “produkty które mam” w treści)
-POST http://127.0.0.1:8000/agent/message
+POST {{base}}/agent/message
 Content-Type: application/x-www-form-urlencoded
 
-user_id=John Doe&message=Co mogę ugotować dla osoby z celiakią z produktów które mam?
+user_id=John Doe&message=Co mogę ugotować z produktów które mam dla osoby z celiakią, występujących w sezonie letnim?
